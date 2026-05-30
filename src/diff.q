@@ -47,8 +47,33 @@ i.cmpCols:{[declared;actual]
     if[not di[`attr]~ai`attr; r:r,i.row[nm;c;`attrChange;ai`attr;di`attr;"attribute differs"]];
     r }[nm;dc;ac] each common;
   rows };
-i.cmpTable:{[declared;actual] i.noRows };
-i.cmpEnum:{[declared;actual] i.noRows };
+i.cmpTable:{[declared;actual]
+  nm:declared`name;
+  rows:i.noRows;
+  if[not declared[`kind]~actual`kind;
+     rows:rows,i.row[nm;`;`kindChange;actual`kind;declared`kind;"table kind differs"]];
+  if[(declared[`kind]=`partitioned) & not declared[`partitionField]~actual`partitionField;
+     rows:rows,i.row[nm;`;`partitionChange;actual`partitionField;declared`partitionField;"partition field differs"]];
+  dn:declared[`columns]`name; an:actual[`columns]`name;
+  common:dn inter an;
+  dco:dn where dn in common;     / declared relative order of common cols
+  aco:an where an in common;     / on-disk relative order of common cols
+  if[not dco~aco;
+     rows:rows,i.row[nm;`;`colOrderChange;aco;dco;"common columns in different order"]];
+  rows };
+
+/ enumeration mismatch (spec section 9): partitioned symbol cols are enum-by-default
+i.cmpEnum:{[declared;actual]
+  nm:declared`name;
+  dc:declared`columns; ac:actual`columns;
+  common:(dc`name) inter ac`name;
+  declEnum:declared[`kind]=`partitioned;
+  raze enlist[i.noRows],{[nm;dc;ac;declEnum;c]
+    di:i.colInfo[dc;c]; ai:i.colInfo[ac;c];
+    if[not di[`type]=`symbol; :i.noRows];
+    if[declEnum~ai`enum; :i.noRows];
+    i.row[nm;c;`enumMismatch;ai`enum;declEnum;"enumeration state differs"]
+   }[nm;dc;ac;declEnum] each common };
 
 / compare two section-6 reps. actual is (::) when the table is absent on disk.
 i.compare:{[declared;actual]

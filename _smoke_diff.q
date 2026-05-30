@@ -42,6 +42,38 @@ chk["cmpCols typeChange a";  `typeChange in exec change from rc2 where column=`a
 chk["cmpCols listChange a";  `listChange in exec change from rc2 where column=`a];
 chk["cmpCols typeChange sev";`destructive in exec severity from rc2 where change=`typeChange];
 
+-1 "--- compare: table-level ---";
+/ kindChange: declared partitioned, actual splayed
+dk:mkrep[`t;`partitioned;`date] mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+ak:mkrep[`t;`splayed;`]          mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+rk:.qm.i.cmpTable[dk;ak];
+chk["kindChange";     `kindChange in exec change from rk];
+chk["kindChange sev"; `destructive in exec severity from rk where change=`kindChange];
+
+/ partitionChange: date vs month
+dp:mkrep[`t;`partitioned;`date]  mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+ap2:mkrep[`t;`partitioned;`month] mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+chk["partitionChange"; `partitionChange in exec change from .qm.i.cmpTable[dp;ap2]];
+
+/ colOrderChange: same cols, different order
+dord:mkrep[`t;`splayed;`] mkcols[`a`b; `long`long; 00b; ``; 00b];
+aord:mkrep[`t;`splayed;`] mkcols[`b`a; `long`long; 00b; ``; 00b];
+chk["colOrderChange";     `colOrderChange in exec change from .qm.i.cmpTable[dord;aord]];
+chk["colOrderChange sev"; `change in exec severity from .qm.i.cmpTable[dord;aord] where change=`colOrderChange];
+
+-1 "--- compare: enum ---";
+/ declared partitioned symbol (enum expected) vs on-disk not-enumerated
+de:mkrep[`t;`partitioned;`date] mkcols[enlist`s; enlist`symbol; enlist 0b; enlist`; enlist 0b];
+ae:mkrep[`t;`partitioned;`date] mkcols[enlist`s; enlist`symbol; enlist 0b; enlist`; enlist 0b];  / enum=0b on disk
+chk["enumMismatch";     `enumMismatch in exec change from .qm.i.cmpEnum[de;ae]];
+chk["enumMismatch sev"; `warning in exec severity from .qm.i.cmpEnum[de;ae] where change=`enumMismatch];
+/ matching enum -> no row
+am:mkrep[`t;`partitioned;`date] mkcols[enlist`s; enlist`symbol; enlist 0b; enlist`; enlist 1b];
+chk["enum match -> none"; 0=count .qm.i.cmpEnum[de;am]];
+
+-1 "--- compare: end-to-end pure ---";
+chk["compare razes all"; 0<count .qm.i.compare[dk;ak]];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
