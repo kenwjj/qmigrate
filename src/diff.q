@@ -94,4 +94,48 @@ i.rollupWith:{[rows;o]
   ap:(not hasD) | o`allowDestructive;
   `maxSeverity`applyable`rows!(ms;ap;rows) };
 
+/ lowercase meta type char -> section-4 type symbol
+i.charType:"bxhijefcspmdznuvtg"!`boolean`byte`short`int`long`real`float`char`symbol`timestamp`month`date`datetime`timespan`minute`second`time`guid;
+
+/ meta type char -> (type symbol; list flag). uppercase => vector column; " " => string.
+i.colType:{[ch]
+  if[ch=" "; :(`string;0b)];
+  lc:lower ch;
+  if[not lc in key i.charType; '"qm: unknown on-disk type char '",ch,"'"];
+  (i.charType lc; not ch=lc) };
+
+/ infer the partition field name from partition dir-name format
+i.partField:{[partDirs]
+  s:string first partDirs;
+  $[s like "[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"; `date;
+    s like "[0-9][0-9][0-9][0-9].[0-9][0-9]"; `month;
+    s like "[0-9][0-9][0-9][0-9]"; `year;
+    `int] };
+
+/ detect if a column file is enumerated: raw type 20-76 = enum domain
+i.isEnum:{[dir;c] (type get ` sv dir,c) within 20 76};
+
+/ read a splayed/partition table dir into an actual rep (section-6 + enum column)
+i.readDir:{[dir;name;kind;pf]
+  m:0!meta get dir;
+  ct:i.colType each m`t;                       / list of (type;listFlag)
+  colTab:flip `name`type`list`attr`default`defaultFn`enum!(
+    m`c; ct[;0]; ct[;1]; m`a; count[m`c]#(::); count[m`c]#`; i.isEnum[dir] each m`c);
+  `name`kind`partitionField`columns!(name; kind; pf; colTab) };
+
+/ introspect one on-disk table -> actual rep, or (::) if absent
+i.introspect:{[root;table]
+  / map the HDB's enum domain so enumerated symbol columns resolve to `s with f=`sym.
+  / required when diffing an HDB the current session did not itself build.
+  if[`sym in key root; `sym set get ` sv root,`sym];
+  sdir:` sv root,table;
+  if[`.d in key sdir; :i.readDir[sdir; table; `splayed; `]];   / splayed
+  ents:key root;
+  isPart:{[root;table;e] `.d in key ` sv root,e,table}[root;table] each ents;
+  partDirs:ents where isPart;
+  if[count partDirs;
+     latest:last asc partDirs;
+     :i.readDir[` sv root,latest,table; table; `partitioned; i.partField partDirs] ];
+  (::) };
+
 \d .

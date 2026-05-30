@@ -92,6 +92,38 @@ resc:.qm.i.rollupWith[rch; o0];
 chk["rollup change maxSeverity"; resc[`maxSeverity]~`change];
 chk["rollup change applyable";    resc[`applyable]~1b];
 
+-1 "--- build fixture HDB ./testhdb ---";
+HDB:`:testhdb;
+/ partitioned `quote over two dates: enumerated sym, a vector col, a string col, no attrs on disk
+{[hdb;d]
+  t:([] time:2#.z.p; sym:`A`B; bids:(1 2f;3 4f); note:("x";"yy"); px:1.0 2.0);
+  (` sv hdb,(`$string d),`quote,`) set .Q.en[hdb;t];
+ }[HDB] each 2025.01.01 2025.01.02;
+/ splayed `ref: raw (non-enumerated) symbols, sorted attr on sym
+/ write columns individually to avoid auto-enumeration, then write .d
+system "mkdir ",ssr[1_string ` sv HDB,`ref,`; "/"; "\\"];
+(` sv HDB,`ref,`sym)    set `s#`AA`BB;
+(` sv HDB,`ref,`label)  set `x`y;
+(` sv HDB,`ref,`active) set 01b;
+(` sv HDB,`ref,`.d)     set `sym`label`active;
+chk["fixture quote exists"; not ()~key ` sv HDB,`2025.01.01`quote];
+chk["fixture ref exists";   not ()~key ` sv HDB,`ref];
+
+-1 "--- introspect ---";
+iq:.qm.i.introspect[HDB;`quote];
+chk["introspect quote partitioned"; iq[`kind]~`partitioned];
+chk["introspect quote pf=date";      iq[`partitionField]~`date];
+chk["introspect bids is list";       1b~(.qm.i.colInfo[iq`columns;`bids])`list];
+chk["introspect bids type float";    `float~(.qm.i.colInfo[iq`columns;`bids])`type];
+chk["introspect note is string";     `string~(.qm.i.colInfo[iq`columns;`note])`type];
+chk["introspect note not list";      0b~(.qm.i.colInfo[iq`columns;`note])`list];
+chk["introspect sym enumerated";     1b~(.qm.i.colInfo[iq`columns;`sym])`enum];
+ir:.qm.i.introspect[HDB;`ref];
+chk["introspect ref splayed";        ir[`kind]~`splayed];
+chk["introspect ref sym attr s";     `s~(.qm.i.colInfo[ir`columns;`sym])`attr];
+chk["introspect ref sym raw (no enum)"; 0b~(.qm.i.colInfo[ir`columns;`sym])`enum];
+chk["introspect absent -> ::";       (::)~.qm.i.introspect[HDB;`nope]];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
