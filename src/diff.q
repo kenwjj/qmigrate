@@ -52,7 +52,7 @@ i.cmpTable:{[declared;actual]
   rows:i.noRows;
   if[not declared[`kind]~actual`kind;
      rows:rows,i.row[nm;`;`kindChange;actual`kind;declared`kind;"table kind differs"]];
-  if[(declared[`kind]=`partitioned) & not declared[`partitionField]~actual`partitionField;
+  if[(declared[`kind]~`partitioned) & (actual[`kind]~`partitioned) & not declared[`partitionField]~actual`partitionField;
      rows:rows,i.row[nm;`;`partitionChange;actual`partitionField;declared`partitionField;"partition field differs"]];
   dn:declared[`columns]`name; an:actual[`columns]`name;
   common:dn inter an;
@@ -67,10 +67,10 @@ i.cmpEnum:{[declared;actual]
   nm:declared`name;
   dc:declared`columns; ac:actual`columns;
   common:(dc`name) inter ac`name;
-  declEnum:declared[`kind]=`partitioned;
+  declEnum:declared[`kind]~`partitioned;
   raze enlist[i.noRows],{[nm;dc;ac;declEnum;c]
     di:i.colInfo[dc;c]; ai:i.colInfo[ac;c];
-    if[not di[`type]=`symbol; :i.noRows];
+    if[not di[`type]~`symbol; :i.noRows];
     if[declEnum~ai`enum; :i.noRows];
     i.row[nm;c;`enumMismatch;ai`enum;declEnum;"enumeration state differs"]
    }[nm;dc;ac;declEnum] each common };

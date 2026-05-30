@@ -49,6 +49,7 @@ ak:mkrep[`t;`splayed;`]          mkcols[enlist`a; enlist`long; enlist 0b; enlist
 rk:.qm.i.cmpTable[dk;ak];
 chk["kindChange";     `kindChange in exec change from rk];
 chk["kindChange sev"; `destructive in exec severity from rk where change=`kindChange];
+chk["kind change -> no partitionChange"; 0=count select from rk where change=`partitionChange];
 
 / partitionChange: date vs month
 dp:mkrep[`t;`partitioned;`date]  mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
