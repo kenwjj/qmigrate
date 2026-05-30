@@ -1,0 +1,17 @@
+# q / kdb+ artifacts
+*.o
+q.log
+*.qlog
+
+# license files (machine-specific; never commit)
+kc.lic
+k4.lic
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*~
+*.swp
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
