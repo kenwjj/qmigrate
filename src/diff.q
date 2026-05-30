@@ -23,8 +23,30 @@ i.row:{[tbl;col;chg;frm;t;det]
 / empty rows table with the right columns
 i.noRows:0#i.row[`;`;`skipped;::;::;""];
 
-/ comparison helpers — filled in later tasks; return an empty rows table for now
-i.cmpCols:{[declared;actual] i.noRows };
+/ pull one column's fields out of a columns table as a dict
+i.colInfo:{[ct;c]
+  i:first where ct[`name]=c;
+  `type`list`attr`enum!(ct[`type]i; ct[`list]i; ct[`attr]i; $[`enum in cols ct; ct[`enum]i; 0b]) };
+
+/ add / drop / type / list / attr  (spec section 4)
+i.cmpCols:{[declared;actual]
+  nm:declared`name;
+  dc:declared`columns; ac:actual`columns;
+  dn:dc`name; an:ac`name;
+  adds:dn except an;
+  drops:an except dn;
+  common:dn inter an;
+  rows:i.noRows;
+  rows:rows,raze enlist[i.noRows],{[nm;dc;c] i.row[nm;c;`addColumn;::;(i.colInfo[dc;c])`type;"declared, absent on disk"]}[nm;dc] each adds;
+  rows:rows,raze enlist[i.noRows],{[nm;ac;c] i.row[nm;c;`dropColumn;(i.colInfo[ac;c])`type;::;"on disk, not declared"]}[nm;ac] each drops;
+  rows:rows,raze enlist[i.noRows],{[nm;dc;ac;c]
+    di:i.colInfo[dc;c]; ai:i.colInfo[ac;c];
+    r:i.noRows;
+    if[not di[`type]~ai`type; r:r,i.row[nm;c;`typeChange;ai`type;di`type;"type differs"]];
+    if[not di[`list]~ai`list; r:r,i.row[nm;c;`listChange;ai`list;di`list;"list-ness differs"]];
+    if[not di[`attr]~ai`attr; r:r,i.row[nm;c;`attrChange;ai`attr;di`attr;"attribute differs"]];
+    r }[nm;dc;ac] each common;
+  rows };
 i.cmpTable:{[declared;actual] i.noRows };
 i.cmpEnum:{[declared;actual] i.noRows };
 
