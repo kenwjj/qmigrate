@@ -17,7 +17,7 @@ Four units in `src/diff.q`, namespace `.qm` (loaded after `src/qm.q`):
 | Unit | I/O? | Signature | Responsibility |
 |------|------|-----------|----------------|
 | `.qm.i.introspect` | yes | `[hdbPath; table]` → section 6 rep, or `(::)` if absent | Read one on-disk table into a section 6 representation |
-| `.qm.i.compare` | no (pure) | `[declared; actual; opts]` → diff rows | Compare two section 6 reps, classify each difference |
+| `.qm.i.compare` | no (pure) | `[declared; actual]` → diff rows | Compare two section 6 reps, classify each difference (opts is a rollup concern, not a comparison input) |
 | `.qm.diffTable` | yes | `[hdbPath; declared; opts]` → result | Introspect + compare for a single declared table |
 | `.qm.diff` | yes | `[hdbPath; declaredDict; opts]` → result | Map `diffTable` over a loadSchemas dict; add table-level add/unmanaged detection |
 
