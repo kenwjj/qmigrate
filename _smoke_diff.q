@@ -75,6 +75,23 @@ chk["enum match -> none"; 0=count .qm.i.cmpEnum[de;am]];
 -1 "--- compare: end-to-end pure ---";
 chk["compare razes all"; 0<count .qm.i.compare[dk;ak]];
 
+-1 "--- rollup + opts ---";
+o0:.qm.i.normOpts[()!()];
+chk["normOpts default 0b"; o0[`allowDestructive]~0b];
+chk["normOpts unknown throws"; thr[.qm.i.normOpts; (enlist`bogus)!enlist 1b]];
+
+rd:.qm.i.cmpCols[decl2;act2];               / has a destructive typeChange
+res0:.qm.i.rollupWith[rd; .qm.i.normOpts[()!()]];
+chk["rollup maxSeverity destructive"; res0[`maxSeverity]~`destructive];
+chk["rollup blocked by default";       res0[`applyable]~0b];
+res1:.qm.i.rollupWith[rd; .qm.i.normOpts[(enlist`allowDestructive)!enlist 1b]];
+chk["rollup applyable when allowed";   res1[`applyable]~1b];
+
+rch:.qm.i.cmpTable[dord;aord];              / colOrderChange only (change)
+resc:.qm.i.rollupWith[rch; o0];
+chk["rollup change maxSeverity"; resc[`maxSeverity]~`change];
+chk["rollup change applyable";    resc[`applyable]~1b];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

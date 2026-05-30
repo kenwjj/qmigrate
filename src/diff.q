@@ -81,4 +81,17 @@ i.compare:{[declared;actual]
   if[(::)~actual; :i.row[nm;`;`newTable;::;declared`kind;"table not present on disk"]];
   raze (i.cmpTable[declared;actual]; i.cmpCols[declared;actual]; i.cmpEnum[declared;actual]) };
 
+/ validate + default the opts dict (spec section 6). only allowDestructive is recognised.
+i.normOpts:{[opts]
+  bad:key[opts] except enlist `allowDestructive;
+  if[count bad; '"qm: unknown diff option(s): ",", " sv string bad];
+  (enlist `allowDestructive)!enlist $[`allowDestructive in key opts; opts`allowDestructive; 0b] };
+
+/ roll a rows table up into the result dict, given normalised opts
+i.rollupWith:{[rows;o]
+  ms:$[count rows; key[i.sevRank] max i.sevRank rows`severity; `ok];
+  hasD:`destructive in rows`severity;
+  ap:(not hasD) | o`allowDestructive;
+  `maxSeverity`applyable`rows!(ms;ap;rows) };
+
 \d .
