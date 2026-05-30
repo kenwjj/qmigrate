@@ -2,7 +2,7 @@
 
 Schema migration tooling for kdb+/q. Declare table schemas as data, diff them against a live HDB, and apply the changes safely.
 
-> **Status:** Phase 1, in development. The native q schema DSL is implemented and verified; the differ / plan / apply / report layers are not yet built.
+> **Status:** Phase 1, in development. The native q schema DSL and the differ are implemented and verified; the plan / apply / report layers are not yet built.
 
 ## What it does
 
@@ -10,7 +10,7 @@ qmigrate separates *declaring* a schema from *mutating* on-disk data:
 
 1. **Declare** — write one `.q` file per table describing its shape, columns, types, attributes, and defaults. Schema files are pure data (no side effects).
 2. **Load** — `.qm.loadSchemas` reads a directory of schema files into a single normalised internal representation.
-3. *(future)* **Diff / plan / apply** — compare the declared schema against an existing HDB, produce a migration plan, and apply it.
+3. **Diff** — `.qm.diff` compares the declared schema against an existing HDB and classifies every difference by severity. *(future)* **plan / apply** — produce a migration plan and apply it.
 
 Two input formats produce the same internal representation: the **native q DSL** (this phase) and **Delta Control XML** (separate spec, later phase).
 
@@ -41,13 +41,37 @@ Six functions, four modifier keys. Each schema file is a single expression retur
 
 Full reference: **[schema-spec.md](schema-spec.md)**. Worked examples: **[schemas/](schemas/)**.
 
+## Differ
+
+`src/diff.q` compares a declared schema against an on-disk HDB and classifies
+each difference (severity rank `ok < change < warning < destructive`):
+
+```q
+\l src/qm.q
+\l src/diff.q
+schemas: .qm.loadSchemas `:schemas;
+result:  .qm.diff[`:/path/to/hdb; schemas; ()!()];
+result`maxSeverity   / `ok | `change | `warning | `destructive
+result`applyable     / 0b if destructive changes present and not opted in
+result`rows          / table of classified differences
+
+/ allow destructive changes through the applyable gate:
+.qm.diff[`:/path/to/hdb; schemas; (enlist`allowDestructive)!enlist 1b];
+```
+
+`.qm.diffTable[hdbPath; declared; opts]` diffs a single declared table. The
+differ only detects and classifies — the plan / apply layers (later) act on the
+result. Design: **[docs/superpowers/specs/2026-05-30-differ-design.md](docs/superpowers/specs/2026-05-30-differ-design.md)**.
+
 ## Layout
 
 ```
 src/qm.q          the .qm DSL implementation
+src/diff.q        the differ (.qm.diff / .qm.diffTable); loaded after qm.q
 schemas/          example schema files (one table per file; loader recurses)
 schema-spec.md    canonical DSL specification (v0.1)
-_smoke.q          manual verification check (until a test framework is chosen)
+_smoke.q          manual verification check for the DSL
+_smoke_diff.q     manual verification check for the differ (builds a temp HDB)
 ```
 
 ## Running
@@ -72,7 +96,7 @@ q _smoke.q -q
 
 ## Testing
 
-No test framework is wired up yet — `_smoke.q` is a temporary hand-rolled harness (29 assertions covering every spec §8 example and every §7 validation rule). A proper framework is still to be chosen.
+No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. A proper framework is still to be chosen.
 
 ## Phase 1 scope
 
