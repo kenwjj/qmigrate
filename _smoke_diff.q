@@ -146,6 +146,18 @@ resm:.qm.diffTable[HDB; dm; ()!()];
 chk["diffTable memory skipped"; `skipped in exec change from resm[`rows]];
 chk["diffTable bad path throws"; thr[.qm.diffTable[`:does_not_exist;dq]; ()!()]];
 
+-1 "--- diff (whole HDB) ---";
+/ declared dict: quote (matches w/ attrChange) + a brand-new table 'fills'. 'ref' on disk is undeclared.
+dfills:.qm.schema[`fills] (.qm.splayed[]; .qm.col[`id;`long]);
+decls:`quote`fills!(dq;dfills);
+resa:.qm.diff[HDB; decls; ()!()];
+chk["diff newTable fills";      `newTable in exec change from resa[`rows] where table=`fills];
+chk["diff unmanaged ref";        `unmanagedTable in exec change from resa[`rows] where table=`ref];
+chk["diff unmanaged is warning"; `warning in exec severity from resa[`rows] where change=`unmanagedTable];
+chk["diff lists ref on disk";    `ref in .qm.i.listTables HDB];
+chk["diff lists quote on disk";  `quote in .qm.i.listTables HDB];
+chk["diff applyable (no destr)"; resa[`applyable]~1b];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

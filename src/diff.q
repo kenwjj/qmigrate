@@ -150,4 +150,27 @@ diffTable:{[root;declared;opts]
   if[not 11h=type key root; '"qm: hdb path not found or not a directory: ",string root];
   i.rollupWith[i.tableRows[root;declared]; o] };
 
+/ all table names present on disk (splayed at root + tables inside partition dirs)
+i.listTables:{[root]
+  ents:key root;
+  isDir:{[root;e] 11h=type key ` sv root,e}[root] each ents;
+  dirs:ents where isDir;
+  splay:dirs where {[root;e] `.d in key ` sv root,e}[root] each dirs;
+  partDirs:dirs where {[root;e] not `.d in key ` sv root,e}[root] each dirs;
+  ptabs:$[count partDirs;
+    distinct raze {[root;p]
+      pe:key ` sv root,p;
+      pe where {[root;p;t] `.d in key ` sv root,p,t}[root;p] each pe }[root] each partDirs;
+    `symbol$()];
+  distinct splay,ptabs };
+
+/ public: diff a whole loadSchemas dict against the HDB
+diff:{[root;declaredDict;opts]
+  o:i.normOpts opts;
+  if[not 11h=type key root; '"qm: hdb path not found or not a directory: ",string root];
+  declRows:raze enlist[i.noRows],i.tableRows[root;] each value declaredDict;
+  unmanaged:(i.listTables root) except key declaredDict;
+  unmRows:raze enlist[i.noRows],{[nm] i.row[nm;`;`unmanagedTable;nm;::;"on disk, not declared"]} each unmanaged;
+  i.rollupWith[declRows,unmRows; o] };
+
 \d .
