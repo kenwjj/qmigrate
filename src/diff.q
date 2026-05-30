@@ -138,4 +138,16 @@ i.introspect:{[root;table]
      :i.readDir[` sv root,latest,table; table; `partitioned; i.partField partDirs] ];
   (::) };
 
+/ rows for one declared table (memory -> skipped; else introspect + compare)
+i.tableRows:{[root;declared]
+  if[declared[`kind]~`memory;
+     :i.row[declared`name;`;`skipped;::;::;"in-memory table; no disk target"]];
+  i.compare[declared; i.introspect[root;declared`name]] };
+
+/ public: diff one declared table against the HDB
+diffTable:{[root;declared;opts]
+  o:i.normOpts opts;
+  if[not 11h=type key root; '"qm: hdb path not found or not a directory: ",string root];
+  i.rollupWith[i.tableRows[root;declared]; o] };
+
 \d .

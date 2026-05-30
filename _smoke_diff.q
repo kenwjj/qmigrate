@@ -124,6 +124,28 @@ chk["introspect ref sym attr s";     `s~(.qm.i.colInfo[ir`columns;`sym])`attr];
 chk["introspect ref sym raw (no enum)"; 0b~(.qm.i.colInfo[ir`columns;`sym])`enum];
 chk["introspect absent -> ::";       (::)~.qm.i.introspect[HDB;`nope]];
 
+-1 "--- diffTable ---";
+/ declared quote matching disk except: declares attr `g on sym (disk has none) -> attrChange;
+/ declares sym enum-by-default (partitioned) which matches disk enum -> no enumMismatch
+dq:.qm.schema[`quote] (
+  .qm.partitioned[`date];
+  .qm.col [`time;  `timestamp];
+  .qm.colx[`sym;   `symbol; `attr`g];
+  .qm.colx[`bids;  `float;  `list`true];
+  .qm.col [`note;  `string];
+  .qm.col [`px;    `float] );
+res:.qm.diffTable[HDB; dq; ()!()];
+chk["diffTable result dict";  `maxSeverity`applyable`rows~key res];
+chk["diffTable attrChange sym"; `attrChange in exec change from res[`rows] where column=`sym];
+chk["diffTable no enumMismatch"; 0=count select from res[`rows] where change=`enumMismatch];
+chk["diffTable applyable";      res[`applyable]~1b];
+
+/ memory table -> skipped
+dm:.qm.schema[`cfg] (.qm.memory[]; .qm.col[`k;`symbol]);
+resm:.qm.diffTable[HDB; dm; ()!()];
+chk["diffTable memory skipped"; `skipped in exec change from resm[`rows]];
+chk["diffTable bad path throws"; thr[.qm.diffTable[`:does_not_exist;dq]; ()!()]];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
