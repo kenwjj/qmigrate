@@ -16,13 +16,14 @@ i.changeSev:(`newTable`unmanagedTable`addColumn`attrChange`colOrderChange`dropCo
 
 / build a 1-row diff table. flip (not ([]...)) because `from is reserved.
 i.row:{[tbl;col;chg;frm;t;det]
+  if[null i.changeSev chg; '"qm: unknown change type: ",string chg];
   flip `table`column`change`from`to`severity`detail!(
     enlist tbl; enlist col; enlist chg; enlist frm; enlist t; enlist i.changeSev chg; enlist det) };
 
 / empty rows table with the right columns
 i.noRows:0#i.row[`;`;`skipped;::;::;""];
 
-/ comparison helpers — filled in later tasks; stubbed to emit nothing for now
+/ comparison helpers — filled in later tasks; return an empty rows table for now
 i.cmpCols:{[declared;actual] i.noRows };
 i.cmpTable:{[declared;actual] i.noRows };
 i.cmpEnum:{[declared;actual] i.noRows };
