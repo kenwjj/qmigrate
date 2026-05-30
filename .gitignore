@@ -7,6 +7,9 @@ q.log
 kc.lic
 k4.lic
 
+# differ smoke-test fixture HDB
+testhdb/
+
 # OS / editor junk
 .DS_Store
 Thumbs.db

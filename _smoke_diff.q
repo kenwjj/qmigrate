@@ -158,6 +158,26 @@ chk["diff lists ref on disk";    `ref in .qm.i.listTables HDB];
 chk["diff lists quote on disk";  `quote in .qm.i.listTables HDB];
 chk["diff applyable (no destr)"; resa[`applyable]~1b];
 
+-1 "--- diff: destructive + opt-in ---";
+/ declared quote that DROPS px and changes note type -> destructive
+dqd:.qm.schema[`quote] (
+  .qm.partitioned[`date];
+  .qm.col [`time; `timestamp];
+  .qm.colx[`sym;  `symbol; `attr`g];
+  .qm.colx[`bids; `float;  `list`true];
+  .qm.col [`note; `symbol] );      / note is `string on disk -> typeChange (destructive); px dropped (destructive)
+resd:.qm.diffTable[HDB; dqd; ()!()];
+chk["e2e maxSeverity destructive"; resd[`maxSeverity]~`destructive];
+chk["e2e blocked by default";       resd[`applyable]~0b];
+chk["e2e dropColumn px";            `dropColumn in exec change from resd[`rows] where column=`px];
+chk["e2e typeChange note";          `typeChange in exec change from resd[`rows] where column=`note];
+resda:.qm.diffTable[HDB; dqd; (enlist`allowDestructive)!enlist 1b];
+chk["e2e applyable when allowed";   resda[`applyable]~1b];
+chk["e2e rows unchanged by opt";    count[resd`rows]=count resda`rows];
+
+/ remove the throwaway HDB so re-runs start clean
+@[{system $[.z.o like "w*"; "rmdir /s /q testhdb"; "rm -rf testhdb"]};::;{}];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
