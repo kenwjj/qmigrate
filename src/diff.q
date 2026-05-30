@@ -25,8 +25,8 @@ i.noRows:0#i.row[`;`;`skipped;::;::;""];
 
 / pull one column's fields out of a columns table as a dict
 i.colInfo:{[ct;c]
-  i:first where ct[`name]=c;
-  `type`list`attr`enum!(ct[`type]i; ct[`list]i; ct[`attr]i; $[`enum in cols ct; ct[`enum]i; 0b]) };
+  idx:first where ct[`name]=c;
+  `type`list`attr`enum!(ct[`type]idx; ct[`list]idx; ct[`attr]idx; $[`enum in cols ct; ct[`enum]idx; 0b]) };
 
 / add / drop / type / list / attr  (spec section 4)
 i.cmpCols:{[declared;actual]
