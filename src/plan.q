@@ -47,6 +47,9 @@ i.opFor:{[decl;row]
     chg~`dropColumn;
       i.op[tbl;col;`dropColumn;chg;sev;
            "drop column ",string[col]," from disk";()!()];
+    chg~`colOrderChange;
+      i.op[tbl;`;`reorderColumns;chg;sev;
+           "rewrite .d to declared column order";(enlist`order)!enlist decl[`columns]`name];
     / unmanagedTable, skipped, unknown -> no op
     i.noOps ] };
 

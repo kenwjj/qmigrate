@@ -76,6 +76,13 @@ chk["dropColumn op";       `dropColumn~first pDrop[`ops]`op];
 chk["dropColumn destructive"; `destructive~first pDrop[`ops]`severity];
 chk["dropColumn column";   `gone~first pDrop[`ops]`column];
 
+-1 "--- plan: reorderColumns ---";
+dord:.qm.schema[`trade] (.qm.splayed[]; .qm.col[`a;`long]; .qm.col[`b;`long]);
+pOrd:.qm.plan[.qm.i.rollupWith[.qm.i.row[`trade;`;`colOrderChange;`b`a;`a`b;"different order"]; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist dord];
+chk["reorderColumns op";    `reorderColumns~first pOrd[`ops]`op];
+chk["reorderColumns order"; `a`b~(first pOrd[`ops]`params)`order];
+chk["reorderColumns table-level"; `~first pOrd[`ops]`column];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
