@@ -159,6 +159,20 @@ chk["clearAttr applied"; resca[`status]~`applied];
 chk["attr cleared";      `~attr get ` sv cad,`g];
 rmrf "testhdb_ca";
 
+-1"--- apply: reorderColumns ---";
+rmrf "testhdb_ro"; RO:`:testhdb_ro; rod:` sv RO,`t;
+(` sv rod,`a) set 1 2 3;
+(` sv rod,`b) set 4 5 6;
+(` sv rod,`.d) set `b`a;                       / on-disk order b,a
+dro:.qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.col[`b;`long]);   / declared a,b
+plro:.qm.plan[.qm.diff[RO;(enlist`t)!enlist dro;()!()]; (enlist`t)!enlist dro];
+resro:.qm.apply[RO; plro; ()!()];
+chk["reorder applied"; resro[`status]~`applied];
+chk[".d reordered";    (get ` sv rod,`.d)~`a`b];
+chk["data intact";     (get ` sv rod,`a)~1 2 3];
+chk["re-diff ok";      `ok~(.qm.diff[RO;(enlist`t)!enlist dro;()!()])`maxSeverity];
+rmrf "testhdb_ro";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

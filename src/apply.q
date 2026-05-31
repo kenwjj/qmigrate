@@ -112,6 +112,8 @@ i.opTargets:{[root;e]
        `backup`create!(b;c)];
     op~`dropColumn;
       `backup`create!((i.dpath[;col] each dirs),i.dpath[;`.d] each dirs; ());
+    op~`reorderColumns;
+      `backup`create!(i.dpath[;`.d] each dirs; ());
     op in `setAttr`clearAttr;
       `backup`create!(i.dpath[;col] each dirs; ());
     `backup`create!(();()) ] };
@@ -132,6 +134,8 @@ i.runOp:{[root;e]
       {[col;dir] hdel i.dpath[dir;col]; (i.dpath[dir;`.d]) set (i.getD dir)except col}[col] each dirs;
     op~`clearAttr;
       {[col;dir] p:i.dpath[dir;col]; p set `#get p}[col] each dirs;
+    op~`reorderColumns;
+      {[ord;dir] (i.dpath[dir;`.d]) set ord}[e[`params]`order] each dirs;
     op~`setAttr;
       {[col;a;dir] p:i.dpath[dir;col]; p set a#get p}[col;e[`params]`attr] each dirs;
     '"qm: apply: unknown op ",string op ] };
