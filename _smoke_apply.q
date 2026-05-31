@@ -29,6 +29,25 @@ chk["sentinelDir date";"1900.01.01"~.qm.i.sentinelDir`date];
 chk["sentinelDir int"; "0"~.qm.i.sentinelDir`int];
 rmrf "testhdb_apply";
 
+-1"--- apply: backup / restore / delete-created ---";
+rmrf "testhdb_bk"; B:`:testhdb_bk; bd:` sv B,`t;
+(` sv bd,`a) set 1 2 3;
+(` sv bd,`.d) set enlist `a;
+bdir:.qm.i.backupDir[B; ()!()];
+chk["backupDir default"; bdir~` sv B,`.qmbackup];
+oa:` sv bd,`a;
+.qm.i.doBackup[bdir; enlist oa];
+oa set 9 9 9;                                  / mutate
+.qm.i.restore[bdir; enlist oa];
+chk["restore round-trip"; (get oa)~1 2 3];
+/ create + delete a nested tree, deepest-first
+nf:` sv B,`p,`t,`x;
+nf set 1 2;
+.qm.i.deleteCreated (nf; ` sv B,`p,`t; ` sv B,`p);
+chk["deleteCreated removed file"; not `x in key ` sv B,`p,`t];
+chk["deleteCreated removed dirs"; not `p in key B];
+rmrf "testhdb_bk";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

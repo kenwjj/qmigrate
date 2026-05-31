@@ -46,4 +46,18 @@ i.tnull:`boolean`byte`short`int`long`real`float`char`symbol`timestamp`month`date
 / sentinel partition dir-name for an empty created partitioned table (by field-name convention)
 i.sentinelDir:{[pf] $[pf~`date;"1900.01.01"; pf~`month;"1900.01"; pf~`year;"1900"; "0"]};
 
+/ ---------------------------------------------------------------------------
+/ backup sidecar (flatten each backed-up path to one flat name under the dir)
+/ ---------------------------------------------------------------------------
+i.backupDir:{[root;opts] $[`backupDir in key opts; opts`backupDir; ` sv root,`.qmbackup]};
+i.bkey:{[bdir;p] ` sv bdir,`$ssr[1_string p;"/";"_"]};
+i.symExists:{[root] `sym in key root};
+
+i.doBackup:{[bdir;bpaths] {[bdir;p] (i.bkey[bdir;p]) set get p}[bdir] each bpaths;};
+i.restore :{[bdir;bpaths] {[bdir;p] p set get i.bkey[bdir;p]}[bdir] each bpaths;};
+i.deleteCreated:{[cpaths]
+  / deepest-first by slash count, so files go before their dirs
+  ord:idesc {sum "/"=x} each 1_'string cpaths;
+  {hdel x} each cpaths ord; };
+
 \d .
