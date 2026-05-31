@@ -2,7 +2,7 @@
 
 Schema migration tooling for kdb+/q. Declare table schemas as data, diff them against a live HDB, and apply the changes safely.
 
-> **Status:** Phase 1, in development. The native q schema DSL, the differ, and the plan layer are implemented and verified; the apply / report layers are not yet built.
+> **Status:** Phase 1, in development. The native q schema DSL, the differ, the plan layer, and the apply layer are implemented and verified; the report layer is not yet built.
 
 ## What it does
 
@@ -10,7 +10,7 @@ qmigrate separates *declaring* a schema from *mutating* on-disk data:
 
 1. **Declare** — write one `.q` file per table describing its shape, columns, types, attributes, and defaults. Schema files are pure data (no side effects).
 2. **Load** — `.qm.loadSchemas` reads a directory of schema files into a single normalised internal representation.
-3. **Diff** — `.qm.diff` compares the declared schema against an existing HDB and classifies every difference by severity. *(future)* **plan / apply** — produce a migration plan and apply it.
+3. **Diff** — `.qm.diff` compares the declared schema against an existing HDB and classifies every difference by severity. **plan / apply** — produce a migration plan and apply it to the HDB.
 
 Two input formats produce the same internal representation: the **native q DSL** (this phase) and **Delta Control XML** (separate spec, later phase).
 
@@ -145,17 +145,49 @@ appear as `manual` operations — visible flags that a drop-and-recreate is need
 (later) executes. Design:
 **[docs/superpowers/specs/2026-05-31-plan-layer-design.md](docs/superpowers/specs/2026-05-31-plan-layer-design.md)**.
 
+## Apply
+
+`src/apply.q` executes a plan result against the on-disk HDB. It is the only
+layer that writes. A read-only preflight validates the work and resolves any
+`defaultFn` references; then it backs up every file it will touch, runs the
+operations in `seq` order (fanning out across partitions), and rolls back from
+the backup if any operation fails.
+
+```q
+\l src/qm.q
+\l src/diff.q
+\l src/plan.q
+\l src/apply.q
+schemas: .qm.loadSchemas `:schemas;
+diffResult: .qm.diff[`:/path/to/hdb; schemas; ()!()];
+plan:       .qm.plan[diffResult; schemas];
+result:     .qm.apply[`:/path/to/hdb; plan; ()!()];
+result`status   / `applied | `rolledBack | `dryRun | `blocked | `noop
+result`ops      / report table: seq table column op severity status detail
+result`backup   / backup dir path (left in place on success), or ` when none
+
+/ preview without writing:
+.qm.apply[`:/path/to/hdb; plan; (enlist`dryRun)!enlist 1b];
+```
+
+Apply refuses to mutate when `plan`applyable` is `0b` (status `blocked`); opt in
+to destructive changes by re-running `diff`/`plan` with `allowDestructive`.
+Recreate-class `manual` ops are reported `skipped`, never executed. Design:
+**[docs/superpowers/specs/2026-05-31-apply-layer-design.md](docs/superpowers/specs/2026-05-31-apply-layer-design.md)**.
+
 ## Layout
 
 ```
 src/qm.q          the .qm DSL implementation
 src/diff.q        the differ (.qm.diff / .qm.diffTable); loaded after qm.q
 src/plan.q        the plan layer (.qm.plan); loaded after diff.q
+src/apply.q       the apply layer (.qm.apply); loaded after plan.q
 schemas/          example schema files (one table per file; loader recurses)
 schema-spec.md    canonical DSL specification (v0.1)
 _smoke.q          manual verification check for the DSL
 _smoke_diff.q     manual verification check for the differ (builds a temp HDB)
 _smoke_plan.q     manual verification check for the plan layer
+_smoke_apply.q    manual verification check for the apply layer
 ```
 
 ## Running
@@ -180,7 +212,7 @@ q _smoke.q -q
 
 ## Testing
 
-No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. `_smoke_plan.q` covers the plan layer — it builds differ results (both hand-built and from a throwaway HDB) and asserts every operation in the catalog, the execution ordering, and `applyable` propagation. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`. A proper framework is still to be chosen.
+No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. `_smoke_plan.q` covers the plan layer — it builds differ results (both hand-built and from a throwaway HDB) and asserts every operation in the catalog, the execution ordering, and `applyable` propagation. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`. `_smoke_apply.q` covers the apply layer — it builds throwaway HDBs, drives diff->plan->apply for every operation, and asserts the disk result (by re-diffing to `ok`), the backup/rollback path, dry-run, partition fan-out, and idempotency. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_apply.q -q`. A proper framework is still to be chosen.
 
 ## Phase 1 scope
 
