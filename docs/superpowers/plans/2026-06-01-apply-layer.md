@@ -158,7 +158,7 @@ i.partDirs:{[root;tbl]
 / enumerate vector v against the root sym file, EXTENDING + persisting it; returns enum vec
 i.enum:{[root;v]
   symp:` sv root,`sym;
-  `sym set $[`sym in key root; get symp; `$()];
+  `sym set (),$[`sym in key root; get symp; `$()];   / (), coerces a scalar sym domain to a list
   e:?[`sym;v]; symp set get `sym; e };
 
 / attr-satisfiability: does applying attr `a` to vector v succeed? (` => no attr => ok)
@@ -242,7 +242,7 @@ i.restore :{[bdir;bpaths] {[bdir;p] p set get i.bkey[bdir;p]}[bdir] each bpaths;
 i.deleteCreated:{[cpaths]
   / deepest-first by slash count, so files go before their dirs
   ord:idesc {sum "/"=x} each 1_'string cpaths;
-  {hdel x} each cpaths ord; };
+  {@[hdel; x; {[e](::)}]} each cpaths ord; };   / tolerate paths a partial failure never created
 ```
 
 - [ ] **Step 4: Run to verify it passes**
@@ -1031,12 +1031,27 @@ chk["flag in partition 2"; `flag in get ` sv MP,`2024.01.02,`q,`.d];
 plmp2:.qm.plan[.qm.diff[MP;(enlist`q)!enlist dmp;()!()]; (enlist`q)!enlist dmp];
 chk["idempotent noop"; (.qm.apply[MP; plmp2; ()!()])[`status]~`noop];
 rmrf "testhdb_mp";
+
+-1"--- apply: rollback tolerates mid-fan-out (deleteCreated on never-created path) ---";
+rmrf "testhdb_mf"; MF:`:testhdb_mf;
+(` sv MF,`sym) set `$();
+{[MF;d] pd:` sv MF,(`$d),`q; (` sv pd,`time) set 2#0Np; (` sv pd,`.d) set enlist `time}[MF] each ("2024.01.01";"2024.01.02");
+dmf:.qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.col[`s;`symbol]);  / add symbol col s (2 partitions)
+plmf:.qm.plan[.qm.diff[MF;(enlist`q)!enlist dmf;()!()]; (enlist`q)!enlist dmf];
+/ make the SECOND per-dir enumeration throw -> partition 2's col file is never created
+realEnum:.qm.i.enum; ecnt:0;
+.qm.i.enum:{[root;v] ecnt+:1; if[ecnt>=2; '"midfanout"]; realEnum[root;v]};
+resmf:.qm.apply[MF; plmf; ()!()];
+.qm.i.enum:realEnum;
+chk["midfanout rolledBack (no throw)"; resmf[`status]~`rolledBack];
+chk["midfanout p1 col removed";        not `s in get ` sv MF,`2024.01.01,`q,`.d];
+rmrf "testhdb_mf";
 ```
 
 - [ ] **Step 2: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_apply.q -q`
-Expected: all checks `ok`, `RESULT  ok=71 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=72 fail=0` (includes the mid-fan-out rollback regression check).
 
 - [ ] **Step 3: Commit**
 
@@ -1133,7 +1148,7 @@ Also, in the opening "What it does" list, the differ bullet ends with a parenthe
 - [ ] **Step 5: Verify the harness still passes and commit**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_apply.q -q`
-Expected: `RESULT  ok=71 fail=0` (README changes don't affect tests; this confirms nothing broke).
+Expected: `RESULT  ok=72 fail=0` (README changes don't affect tests; this confirms nothing broke).
 
 ```
 git add README.md
