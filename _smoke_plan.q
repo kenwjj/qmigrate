@@ -36,6 +36,7 @@ chk["createTable seq=1";       1=first pNew[`ops]`seq];
 chk["createTable table-level"; `~first pNew[`ops]`column];
 chk["createTable params kind"; `partitioned~(first pNew[`ops]`params)`kind];
 chk["createTable params cols"; `time`sym`price~(first pNew[`ops]`params)[`columns]`name];
+chk["createTable params partField"; `date~(first pNew[`ops]`params)`partitionField];
 
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
