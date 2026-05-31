@@ -7,6 +7,9 @@ q.log
 kc.lic
 k4.lic
 
+# differ smoke-test fixture HDB
+testhdb/
+
 # OS / editor junk
 .DS_Store
 Thumbs.db
@@ -15,3 +18,6 @@ Thumbs.db
 
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json
+
+# test hdb fixture (machine-specific; never commit)
+hdb/
