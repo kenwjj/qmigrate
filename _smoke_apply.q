@@ -173,6 +173,21 @@ chk["data intact";     (get ` sv rod,`a)~1 2 3];
 chk["re-diff ok";      `ok~(.qm.diff[RO;(enlist`t)!enlist dro;()!()])`maxSeverity];
 rmrf "testhdb_ro";
 
+-1"--- apply: reEnumerate (partitioned symbol col raw on disk) ---";
+rmrf "testhdb_en"; EN:`:testhdb_en;
+(` sv EN,`sym) set `$();                        / empty root sym -> real HDB dir
+ped:` sv EN,`2024.01.01,`q;
+(` sv ped,`time) set 2#0Np;
+(` sv ped,`s)    set `AA`BB;                     / RAW symbols (not enumerated)
+(` sv ped,`.d)   set `time`s;
+den:.qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.col[`s;`symbol]);
+plen:.qm.plan[.qm.diff[EN;(enlist`q)!enlist den;()!()]; (enlist`q)!enlist den];
+resen:.qm.apply[EN; plen; ()!()];
+chk["reEnumerate applied"; resen[`status]~`applied];
+chk["col now enum-typed";  (type get ` sv ped,`s) within 20 76h];
+chk["values preserved";    `AA`BB~get[` sv EN,`sym] get ` sv ped,`s];
+rmrf "testhdb_en";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

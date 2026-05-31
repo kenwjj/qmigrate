@@ -114,6 +114,8 @@ i.opTargets:{[root;e]
       `backup`create!((i.dpath[;col] each dirs),i.dpath[;`.d] each dirs; ());
     op~`reorderColumns;
       `backup`create!(i.dpath[;`.d] each dirs; ());
+    op~`reEnumerate;
+      `backup`create!((i.dpath[;col] each dirs),symBC 0; symBC 1);
     op in `setAttr`clearAttr;
       `backup`create!(i.dpath[;col] each dirs; ());
     `backup`create!(();()) ] };
@@ -136,6 +138,8 @@ i.runOp:{[root;e]
       {[col;dir] p:i.dpath[dir;col]; p set `#get p}[col] each dirs;
     op~`reorderColumns;
       {[ord;dir] (i.dpath[dir;`.d]) set ord}[e[`params]`order] each dirs;
+    op~`reEnumerate;
+      {[root;col;dir] p:i.dpath[dir;col]; p set i.enum[root; get p]}[root;col] each dirs;
     op~`setAttr;
       {[col;a;dir] p:i.dpath[dir;col]; p set a#get p}[col;e[`params]`attr] each dirs;
     '"qm: apply: unknown op ",string op ] };
