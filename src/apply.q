@@ -151,7 +151,16 @@ i.runOp:{[root;e]
       {[root;col;dir] p:i.dpath[dir;col]; p set i.enum[root; get p]}[root;col] each dirs;
     op~`createTable;
       $[e`isPart;
-        '"qm: apply: partitioned createTable not yet implemented";
+        [colz:e`colz; pdir:` sv root,(`$i.sentinelDir e`pf),tbl;
+         nms:colz`name; tps:colz`type; lst:colz`list; ats:colz`attr;
+         {[root;pdir;nms;tps;lst;ats;j]
+            t:tps j; isL:lst j; a:ats j;
+            cell:$[isL; enlist 0#first i.tnull t; i.tnull t];          / 1-row sample cell
+            v:$[(t~`symbol)&not isL; i.enum[root;cell]; cell];          / enumerate symbol cols
+            v:$[a~`; v; a#v];                                          / apply declared attr
+            (i.dpath[pdir;nms j]) set v }[root;pdir;nms;tps;lst;ats] each til count nms;
+         (i.dpath[pdir;`.d]) set nms;
+         {[pdir;c] p:i.dpath[pdir;c]; p set 0#get p}[pdir] each nms ];
         [dir:` sv root,tbl; colz:e`colz;
          {[dir;colz;j] v:0#first i.tnull colz[`type]j; a:colz[`attr]j; (i.dpath[dir;colz[`name]j]) set $[a~`;v;a#v]}[dir;colz] each til count colz`name;
          (i.dpath[dir;`.d]) set colz`name] ];

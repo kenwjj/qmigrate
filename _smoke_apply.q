@@ -202,6 +202,20 @@ chk["splayed empty";       0=count get ` sv ctd,`sym];
 chk["re-diff ok";          `ok~(.qm.diff[CT;(enlist`inst)!enlist dct;()!()])`maxSeverity];
 rmrf "testhdb_ct";
 
+-1"--- apply: createTable partitioned (sentinel) ---";
+rmrf "testhdb_cp"; CP:`:testhdb_cp;
+(` sv CP,`sym) set `$();                          / real HDB dir + empty enum domain
+dcp:.qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`px;`float]);
+plcp:.qm.plan[.qm.diff[CP;(enlist`trade)!enlist dcp;()!()]; (enlist`trade)!enlist dcp];
+rescp:.qm.apply[CP; plcp; ()!()];
+chk["part createTable applied"; rescp[`status]~`applied];
+pdir:` sv CP,`1900.01.01,`trade;
+chk["sentinel .d";        (get ` sv pdir,`.d)~`time`sym`px];
+chk["sentinel empty";     0=count get ` sv pdir,`time];
+chk["sym col enum-typed";  (type get ` sv pdir,`sym) within 20 76h];
+chk["re-diff no newTable"; not `newTable in exec change from (.qm.diff[CP;(enlist`trade)!enlist dcp;()!()])`rows];
+rmrf "testhdb_cp";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
