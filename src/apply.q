@@ -130,6 +130,8 @@ i.runOp:{[root;e]
         (i.dpath[dir;`.d]) set (i.getD dir),e`column }[root;e] each dirs;
     op~`dropColumn;
       {[col;dir] hdel i.dpath[dir;col]; (i.dpath[dir;`.d]) set (i.getD dir)except col}[col] each dirs;
+    op~`clearAttr;
+      {[col;dir] p:i.dpath[dir;col]; p set `#get p}[col] each dirs;
     op~`setAttr;
       {[col;a;dir] p:i.dpath[dir;col]; p set a#get p}[col;e[`params]`attr] each dirs;
     '"qm: apply: unknown op ",string op ] };

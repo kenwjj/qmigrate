@@ -148,6 +148,17 @@ chk["gone file deleted";    not `gone in key dcd];
 chk["re-diff ok";           `ok~(.qm.diff[DC;(enlist`t)!enlist ddc;()!()])`maxSeverity];
 rmrf "testhdb_dc";
 
+-1"--- apply: clearAttr ---";
+rmrf "testhdb_ca"; CA:`:testhdb_ca; cad:` sv CA,`t;
+(` sv cad,`g) set `g#`a`b`c;                  / on-disk has `g attr
+(` sv cad,`.d) set enlist `g;
+dca:.qm.schema[`t] (.qm.splayed[]; .qm.col[`g;`symbol]);    / declared: no attr -> clearAttr
+plca:.qm.plan[.qm.diff[CA;(enlist`t)!enlist dca;()!()]; (enlist`t)!enlist dca];
+resca:.qm.apply[CA; plca; ()!()];
+chk["clearAttr applied"; resca[`status]~`applied];
+chk["attr cleared";      `~attr get ` sv cad,`g];
+rmrf "testhdb_ca";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
