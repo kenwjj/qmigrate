@@ -67,6 +67,7 @@ pAttr:.qm.plan[.qm.i.rollupWith[rowsAttr; .qm.i.normOpts[()!()]]; (enlist`trade)
 chk["setAttr op";    `setAttr in exec op from pAttr[`ops] where column=`sym];
 chk["setAttr param"; `p~(first exec params from pAttr[`ops] where column=`sym)`attr];
 chk["clearAttr op";  `clearAttr in exec op from pAttr[`ops] where column=`px];
+chk["clearAttr param";`g~(first exec params from pAttr[`ops] where column=`px)`from];
 
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
