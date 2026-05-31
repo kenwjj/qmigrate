@@ -103,6 +103,24 @@ chk["manual keeps destructive sev"; all `destructive=exec severity from pMan[`op
 chk["manual carries originating change"; all `typeChange`listChange`kindChange`partitionChange in exec change from pMan[`ops] where op=`manual];
 chk["manual detail mentions recreate"; all (exec detail from pMan[`ops] where op=`manual) like "*drop-and-recreate*"];
 
+-1 "--- plan: ordering + no-ops ---";
+dmix:.qm.schema[`trade] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`new;`long]; .qm.col[`keep;`long]);
+/ one table, several changes given to the differ OUT of execution order
+rowsMix:(.qm.i.row[`trade;`;`colOrderChange;`keep`sym;`sym`new`keep;"order"]),
+        (.qm.i.row[`trade;`gone;`dropColumn;`float;::;"drop"]),
+        (.qm.i.row[`trade;`new;`addColumn;::;`long;"add"]),
+        (.qm.i.row[`trade;`sym;`attrChange;`;`p;"attr"]);
+pMix:.qm.plan[.qm.i.rollupWith[rowsMix; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist dmix];
+chk["ordering: seq is 1..n";  pMix[`ops][`seq]~`long$1+til count pMix`ops];
+chk["ordering: op sequence";  pMix[`ops][`op]~`addColumn`dropColumn`setAttr`reorderColumns];
+
+-1 "--- plan: unmanaged + skipped produce no op ---";
+dnone:.qm.schema[`cfg] (.qm.memory[]; .qm.col[`k;`symbol]);
+rowsNone:(.qm.i.row[`ref;`;`unmanagedTable;`ref;::;"on disk, not declared"]),
+         (.qm.i.row[`cfg;`;`skipped;::;::;"in-memory table; no disk target"]);
+pNone:.qm.plan[.qm.i.rollupWith[rowsNone; .qm.i.normOpts[()!()]]; (enlist`cfg)!enlist dnone];
+chk["unmanaged+skipped -> 0 ops"; 0=count pNone`ops];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
