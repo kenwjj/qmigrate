@@ -61,7 +61,7 @@ Notes:
 
 ## 4. Ordering
 
-Operations are grouped by table in `declaredDict` order. Within a single table the operation order is deterministic:
+Operations are grouped by table in order of each table's first appearance in the differ rows. For a real differ result this equals `declaredDict` order, since `.qm.diff` emits rows by iterating the declared schemas. Within a single table the operation order is deterministic:
 
 1. `createTable` (for `newTable`; a created table has no other ops, since the differ emits only the single `newTable` row)
 2. `addColumn` (all)
