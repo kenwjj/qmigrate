@@ -121,6 +121,40 @@ rowsNone:(.qm.i.row[`ref;`;`unmanagedTable;`ref;::;"on disk, not declared"]),
 pNone:.qm.plan[.qm.i.rollupWith[rowsNone; .qm.i.normOpts[()!()]]; (enlist`cfg)!enlist dnone];
 chk["unmanaged+skipped -> 0 ops"; 0=count pNone`ops];
 
+-1 "--- plan: end-to-end against a temp HDB ---";
+HDB:`:testhdb_plan;
+/ build a splayed `inst on disk: sym (no attr), name
+system "mkdir ",ssr[1_string ` sv HDB,`inst,`; "/"; "\\"];
+(` sv HDB,`inst,`sym)  set `AA`BB;
+(` sv HDB,`inst,`name) set `x`y;
+(` sv HDB,`inst,`.d)   set `sym`name;
+/ note: `default must carry a real boolean here; the `list`true symbol-shorthand
+/ coercion in qm.q applies only to the `list key, not to `default.
+dinst:.qm.schema[`inst] (
+  .qm.splayed[];
+  .qm.colx[`sym;    `symbol; `attr`s];
+  .qm.col [`name;   `symbol];
+  .qm.colx[`active; `boolean; (enlist`default)!enlist 0b] );
+drE:.qm.diff[HDB; (enlist`inst)!enlist dinst; ()!()];
+pE:.qm.plan[drE; (enlist`inst)!enlist dinst];
+chk["e2e addColumn active"; `addColumn in exec op from pE[`ops] where column=`active];
+chk["e2e setAttr sym";      `setAttr in exec op from pE[`ops] where column=`sym];
+chk["e2e applyable";        pE[`applyable]~1b];
+
+-1 "--- plan: destructive applyable propagation ---";
+/ declared inst that drops `name on disk -> destructive
+ddrp:.qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]);
+drD:.qm.diff[HDB; (enlist`inst)!enlist ddrp; ()!()];
+pD:.qm.plan[drD; (enlist`inst)!enlist ddrp];
+chk["e2e destructive blocked"; pD[`applyable]~0b];
+chk["e2e dropColumn name";     `dropColumn in exec op from pD[`ops] where column=`name];
+drDok:.qm.diff[HDB; (enlist`inst)!enlist ddrp; (enlist`allowDestructive)!enlist 1b];
+pDok:.qm.plan[drDok; (enlist`inst)!enlist ddrp];
+chk["e2e applyable when allowed"; pDok[`applyable]~1b];
+
+/ remove the throwaway HDB so re-runs start clean
+@[{system $[.z.o like "w*"; "rmdir /s /q testhdb_plan"; "rm -rf testhdb_plan"]};::;{}];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
