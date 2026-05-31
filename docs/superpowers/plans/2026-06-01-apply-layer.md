@@ -258,7 +258,9 @@ git commit -m "feat(apply): backup/restore/delete-created sidecar helpers"
 
 ## Task 3: The spine — preflight, execute, report, apply (+ setAttr handler)
 
-This is the largest task: it builds the read-only `i.preflight`, the `i.execute` loop with rollback, the `i.report` builder, the public `.qm.apply` (gate / noop / dryRun / execute), `i.normOpts`, `i.fillFor`, `i.entry`, and the `i.opTargets` / `i.runOp` dispatchers seeded with the **`setAttr`** branch. Later tasks add one handler branch each.
+This is the largest task: it builds the read-only `i.preflight`, the `i.execute` loop with rollback, the `i.report` builder, the public `.qm.apply` (gate / noop / dryRun / execute), `i.normApplyOpts`, `i.fillFor`, `i.entry`, and the `i.opTargets` / `i.runOp` dispatchers seeded with the **`setAttr`** branch. Later tasks add one handler branch each.
+
+> **Note (name collision):** `diff.q` already defines `.qm.i.normOpts`. Apply's option-normaliser must use a **different** name — `i.normApplyOpts` — or it clobbers the differ's `normOpts` when both files are loaded, breaking `allowDestructive` handling. The code below uses `i.normApplyOpts`.
 
 **Files:**
 - Modify: `src/apply.q`
@@ -315,7 +317,7 @@ Expected: `.qm.apply` undefined → the new checks FAIL.
 / ---------------------------------------------------------------------------
 / options
 / ---------------------------------------------------------------------------
-i.normOpts:{[opts]
+i.normApplyOpts:{[opts]
   if[not 99h=type opts; '"qm: apply: opts must be a dict"];
   bad:key[opts] except `dryRun`backupDir;
   if[count bad; '"qm: apply: unknown option(s): ",", " sv string bad];
@@ -411,7 +413,7 @@ i.report:{[ops;statusBySeq]
 / ---------------------------------------------------------------------------
 apply:{[root;planResult;opts]
   if[not 11h=type key root; '"qm: apply: hdb path not found: ",string root];
-  o:i.normOpts opts;
+  o:i.normApplyOpts opts;
   if[not all `applyable`ops in key planResult; '"qm: apply: malformed plan result"];
   ops:planResult`ops;
   / gate: refuse a non-applyable plan
@@ -437,7 +439,7 @@ apply:{[root;planResult;opts]
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_apply.q -q`
-Expected: all checks `ok`, `RESULT  ok=28 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=27 fail=0`. (Downstream task counts in this plan are guides; the real running total after this task is 27 — trust `fail=0`.)
 
 - [ ] **Step 5: Commit**
 
@@ -469,13 +471,13 @@ dac:.qm.schema[`t] (
   .qm.splayed[];
   .qm.col [`k;     `long];
   .qm.colx[`flag;  `boolean; (enlist`default)!enlist 1b];   / literal default
-  .qm.colx[`tags;  `symbol;  `default`list!(`x;1b)];         / list col, value-per-cell
+  .qm.colx[`tags;  `symbol;  `default`list!(enlist`x;1b)];   / list col, list-valued default per cell
   .qm.col [`note;  `symbol] );                                / no default -> typed null
 plac:.qm.plan[.qm.diff[AC;(enlist`t)!enlist dac;()!()]; (enlist`t)!enlist dac];
 resac:.qm.apply[AC; plac; ()!()];
 chk["addColumn applied";   resac[`status]~`applied];
 chk["literal default";     (get ` sv acd,`flag)~3#1b];
-chk["list default cell";   (get ` sv acd,`tags)~3#enlist `x];
+chk["list default cell";   (get ` sv acd,`tags)~3#enlist enlist `x];
 chk["typed-null default";  (get ` sv acd,`note)~3#`];
 chk["all in .d";           (get ` sv acd,`.d)~`k`flag`tags`note];
 chk["re-diff ok";          `ok~(.qm.diff[AC;(enlist`t)!enlist dac;()!()])`maxSeverity];
@@ -548,11 +550,17 @@ plfn:.qm.plan[.qm.diff[FN;(enlist`t)!enlist dfn;()!()]; (enlist`t)!enlist dfn];
 resfn:.qm.apply[FN; plfn; ()!()];
 chk["defaultFn applied"; resfn[`status]~`applied];
 chk["defaultFn values";  (get ` sv fnd,`b)~3#42];
-/ missing defaultFn -> preflight throws, nothing created
+/ missing defaultFn -> preflight throws, nothing created.
+/ use a FRESH HDB (only col a) so the plan is applyable (no destructive drop of `b);
+/ reusing FN would diff `b on disk vs undeclared -> dropColumn -> blocked before preflight.
+rmrf "testhdb_bad"; FNB:`:testhdb_bad; fnbd:` sv FNB,`t;
+(` sv fnbd,`a) set 10 20 30;
+(` sv fnbd,`.d) set enlist `a;
 dbad:.qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.colx[`c;`long;`defaultFn`.user.nope]);
-plbad:.qm.plan[.qm.diff[FN;(enlist`t)!enlist dbad;()!()]; (enlist`t)!enlist dbad];
-chk["missing defaultFn throws"; thr[.qm.apply[FN;plbad;]; ()!()]];
-chk["throw left no col c";      not `c in get ` sv fnd,`.d];
+plbad:.qm.plan[.qm.diff[FNB;(enlist`t)!enlist dbad;()!()]; (enlist`t)!enlist dbad];
+chk["missing defaultFn throws"; thr[.qm.apply[FNB;plbad;]; ()!()]];
+chk["throw left no col c";      not `c in get ` sv fnbd,`.d];
+rmrf "testhdb_bad";
 rmrf "testhdb_fn";
 / unsatisfiable attribute -> preflight throws, nothing marked
 rmrf "testhdb_at"; AT:`:testhdb_at; atd:` sv AT,`t;
@@ -881,7 +889,9 @@ Insert before the `op~\`setAttr;` branch:
       $[e`isPart;
         '"qm: apply: partitioned createTable not yet implemented";
         [dir:` sv root,tbl; colz:e`colz;
-         {[dir;colz;j] (i.dpath[dir;colz[`name]j]) set 0#first i.tnull colz[`type]j}[dir;colz] each til count colz`name;
+         / write each declared column as an empty typed vector, applying the declared attr
+         / (so the differ doesn't see an attrChange on re-diff). `a#(empty)` is valid for any attr.
+         {[dir;colz;j] v:0#first i.tnull colz[`type]j; a:colz[`attr]j; (i.dpath[dir;colz[`name]j]) set $[a~`;v;a#v]}[dir;colz] each til count colz`name;
          (i.dpath[dir;`.d]) set colz`name] ];
 ```
 
