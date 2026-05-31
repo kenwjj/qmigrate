@@ -63,6 +63,64 @@ result`rows          / table of classified differences
 differ only detects and classifies — the plan / apply layers (later) act on the
 result. Design: **[docs/superpowers/specs/2026-05-30-differ-design.md](docs/superpowers/specs/2026-05-30-differ-design.md)**.
 
+### Determining the diff between a schema and an HDB
+
+Step by step, from a q session (set `QLIC` first — see [Running](#running)):
+
+1. **Load the differ.** It depends on the DSL, so load `src/qm.q` before `src/diff.q`:
+
+   ```q
+   \l src/qm.q
+   \l src/diff.q
+   ```
+
+2. **Load the declared schemas.** Point `.qm.loadSchemas` at a directory of schema
+   files; it recurses and returns one dict keyed by table name:
+
+   ```q
+   schemas: .qm.loadSchemas `:schemas;
+   ```
+
+3. **Run the diff against the HDB root.** Pass the HDB path as a file symbol, the
+   schema dict, and an options dict (`()!()` for defaults):
+
+   ```q
+   result: .qm.diff[`:/path/to/hdb; schemas; ()!()];
+   ```
+
+4. **Read the rollup.** Two scalars summarise the whole result:
+
+   ```q
+   result`maxSeverity   / highest severity present: `ok | `change | `warning | `destructive
+   result`applyable     / 0b if any destructive change is present and not opted in, else 1b
+   ```
+
+5. **Inspect the detail rows.** `result`rows` is a table — one row per difference —
+   with columns `table` `column` `change` `from` `to` `severity` `detail`.
+   Filter it with qsql to see what changed:
+
+   ```q
+   result`rows                                          / everything
+   select from result`rows where severity=`destructive  / only the blocking changes
+   select table, column, change, detail from result`rows where table=`trade
+   ```
+
+   `from` is the current on-disk value, `to` is the declared value (`::` where not
+   applicable). Change kinds and their severities are catalogued in the
+   [design doc §4](docs/superpowers/specs/2026-05-30-differ-design.md).
+
+6. **Opt in to destructive changes (optional).** Destructive diffs (drop column,
+   type change, kind/partition change) set `applyable` to `0b` by default. To let
+   them through the gate — they still appear in `rows` — set `allowDestructive`:
+
+   ```q
+   result: .qm.diff[`:/path/to/hdb; schemas; (enlist`allowDestructive)!enlist 1b];
+   ```
+
+To diff a single declared table instead of a whole directory, use
+`.qm.diffTable[hdbPath; declared; opts]` with one schema dict
+(e.g. ``.qm.loadSchemas[`:schemas]`trade``) in place of the dict.
+
 ## Layout
 
 ```
