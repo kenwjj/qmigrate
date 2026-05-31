@@ -30,6 +30,14 @@ i.opFor:{[decl;row]
       i.op[tbl;`;`createTable;chg;sev;
            "create ",string[decl`kind]," table ",string tbl;
            `kind`partitionField`columns!(decl`kind; decl`partitionField; decl`columns)];
+    chg~`addColumn;
+      [ci:i.declCol[decl`columns;col];
+       i.op[tbl;col;`addColumn;chg;sev;
+            "add column ",string[col]," (",string[ci`type],")",
+              $[not ci[`defaultFn]~`; ", computed default via ",string ci`defaultFn;
+                not ci[`default]~(::); ", default ",$[10h=type ci`default; ci`default; string ci`default];
+                ""];
+            ci]];
     / unmanagedTable, skipped, unknown -> no op
     i.noOps ] };
 

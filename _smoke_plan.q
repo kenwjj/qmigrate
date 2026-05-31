@@ -38,6 +38,25 @@ chk["createTable params kind"; `partitioned~(first pNew[`ops]`params)`kind];
 chk["createTable params cols"; `time`sym`price~(first pNew[`ops]`params)[`columns]`name];
 chk["createTable params partField"; `date~(first pNew[`ops]`params)`partitionField];
 
+-1 "--- plan: addColumn ---";
+/ declared trade with a literal default and a computed default; differ says both are addColumn
+dadd:.qm.schema[`trade] (
+  .qm.partitioned[`date];
+  .qm.col [`time;     `timestamp];
+  .qm.colx[`exchange; `symbol; `default`attr!(`NYSE;`g)];
+  .qm.colx[`load_date;`date;   `defaultFn`.user.computeLoadDate] );
+rowsAdd:(.qm.i.row[`trade;`exchange; `addColumn;::;`symbol;"add"]),
+        (.qm.i.row[`trade;`load_date;`addColumn;::;`date;  "add"]);
+pAdd:.qm.plan[.qm.i.rollupWith[rowsAdd; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist dadd];
+ax:select from pAdd[`ops] where column=`exchange;
+chk["addColumn op type";       `addColumn~first ax`op];
+chk["addColumn carries default";`NYSE~(first ax`params)`default];
+chk["addColumn carries attr";   `g~(first ax`params)`attr];
+al:select from pAdd[`ops] where column=`load_date;
+chk["addColumn defaultFn param";`.user.computeLoadDate~(first al`params)`defaultFn];
+chk["addColumn defaultFn detail"; (first al`detail) like "*computed default via*"];
+chk["addColumn two ops";        2=count select from pAdd[`ops] where op=`addColumn];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
