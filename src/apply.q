@@ -78,7 +78,7 @@ i.fillFor:{[dir;ci]
       [f:@[get;ci`defaultFn;{[s;e]'"qm: apply: defaultFn not defined: ",string s}[ci`defaultFn]];
        v:f[dir;`col]; if[not n=count v; '"qm: apply: defaultFn returned wrong length"]; v];
     not ci[`default]~(::);
-      $[ci`list; n#enlist enlist ci`default; n#ci`default];
+      $[ci`list; n#enlist ci`default; n#ci`default];
     / neither default nor defaultFn -> typed null (scalar) / empty typed list (list col)
     $[ci`list; n#enlist 0#first i.tnull ci`type; n#first i.tnull ci`type] ] };
 

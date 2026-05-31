@@ -90,7 +90,7 @@ dac:.qm.schema[`t] (
   .qm.splayed[];
   .qm.col [`k;     `long];
   .qm.colx[`flag;  `boolean; (enlist`default)!enlist 1b];   / literal default
-  .qm.colx[`tags;  `symbol;  `default`list!(`x;1b)];         / list col, value-per-cell
+  .qm.colx[`tags;  `symbol;  `default`list!(enlist`x;1b)];   / list col, list-valued default per cell
   .qm.col [`note;  `symbol] );                                / no default -> typed null
 plac:.qm.plan[.qm.diff[AC;(enlist`t)!enlist dac;()!()]; (enlist`t)!enlist dac];
 resac:.qm.apply[AC; plac; ()!()];
