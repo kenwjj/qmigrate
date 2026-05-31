@@ -35,7 +35,11 @@ i.opRank:`createTable`addColumn`dropColumn`setAttr`clearAttr`reEnumerate`reorder
 / stable-order ops by (table first-appearance, op precedence); assign seq 1..n
 i.orderOps:{[ops]
   if[0=count ops; :ops];
+  bad:distinct ops[`op] except key i.opRank;
+  if[count bad; '"qm: orderOps: unknown op(s): ",", " sv string bad];
   ti:(distinct ops`table)?ops`table;          / table first-appearance index
+  / multiplier 100 is safe: opRank is 0-7, so the max intra-table key (7) never
+  / reaches the next table's base (100), keeping inter-table order intact.
   ops:ops iasc (100*ti)+i.opRank ops`op;
   update seq:`long$1+til count ops from ops };
 
