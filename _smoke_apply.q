@@ -255,6 +255,21 @@ plmp2:.qm.plan[.qm.diff[MP;(enlist`q)!enlist dmp;()!()]; (enlist`q)!enlist dmp];
 chk["idempotent noop"; (.qm.apply[MP; plmp2; ()!()])[`status]~`noop];
 rmrf "testhdb_mp";
 
+-1"--- apply: rollback tolerates mid-fan-out (deleteCreated on never-created path) ---";
+rmrf "testhdb_mf"; MF:`:testhdb_mf;
+(` sv MF,`sym) set `$();
+{[MF;d] pd:` sv MF,(`$d),`q; (` sv pd,`time) set 2#0Np; (` sv pd,`.d) set enlist `time}[MF] each ("2024.01.01";"2024.01.02");
+dmf:.qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.col[`s;`symbol]);  / add symbol col s (2 partitions)
+plmf:.qm.plan[.qm.diff[MF;(enlist`q)!enlist dmf;()!()]; (enlist`q)!enlist dmf];
+/ make the SECOND per-dir enumeration throw -> partition 2's col file is never created
+realEnum:.qm.i.enum; ecnt:0;
+.qm.i.enum:{[root;v] ecnt+:1; if[ecnt>=2; '"midfanout"]; realEnum[root;v]};
+resmf:.qm.apply[MF; plmf; ()!()];
+.qm.i.enum:realEnum;
+chk["midfanout rolledBack (no throw)"; resmf[`status]~`rolledBack];
+chk["midfanout p1 col removed";        not `s in get ` sv MF,`2024.01.01,`q,`.d];
+rmrf "testhdb_mf";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

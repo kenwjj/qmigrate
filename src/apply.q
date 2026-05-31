@@ -32,7 +32,7 @@ i.partDirs:{[root;tbl]
 / enumerate vector v against the root sym file, EXTENDING + persisting it; returns enum vec
 i.enum:{[root;v]
   symp:` sv root,`sym;
-  `sym set $[`sym in key root; get symp; `$()];
+  `sym set (),$[`sym in key root; get symp; `$()];   / coerce to list so ?[`sym;v] never throws type
   e:?[`sym;v]; symp set get `sym; e };
 
 / attr-satisfiability: does applying attr `a` to vector v succeed? (` => no attr => ok)
@@ -58,7 +58,7 @@ i.restore :{[bdir;bpaths] {[bdir;p] p set get i.bkey[bdir;p]}[bdir] each bpaths;
 i.deleteCreated:{[cpaths]
   / deepest-first by slash count, so files go before their dirs
   ord:idesc {sum "/"=x} each 1_'string cpaths;
-  {hdel x} each cpaths ord; };
+  {@[hdel; x; {[e](::)}]} each cpaths ord; };   / tolerate paths a partial failure never created
 
 / ---------------------------------------------------------------------------
 / options
