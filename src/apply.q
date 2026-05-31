@@ -60,4 +60,125 @@ i.deleteCreated:{[cpaths]
   ord:idesc {sum "/"=x} each 1_'string cpaths;
   {hdel x} each cpaths ord; };
 
+/ ---------------------------------------------------------------------------
+/ options
+/ ---------------------------------------------------------------------------
+i.normApplyOpts:{[opts]
+  if[not 99h=type opts; '"qm: apply: opts must be a dict"];
+  bad:key[opts] except `dryRun`backupDir;
+  if[count bad; '"qm: apply: unknown option(s): ",", " sv string bad];
+  opts };
+
+/ ---------------------------------------------------------------------------
+/ per-dir resolved fill for addColumn (raw symbols, pre-enumeration)
+/ ---------------------------------------------------------------------------
+i.fillFor:{[dir;ci]
+  n:i.rowCount dir;
+  $[not ci[`defaultFn]~`;
+      [f:@[get;ci`defaultFn;{[s;e]'"qm: apply: defaultFn not defined: ",string s}[ci`defaultFn]];
+       v:f[dir;`col]; if[not n=count v; '"qm: apply: defaultFn returned wrong length"]; v];
+    not ci[`default]~(::);
+      $[ci`list; n#enlist ci`default; n#ci`default];
+    / neither default nor defaultFn -> typed null (scalar) / empty typed list (list col)
+    $[ci`list; n#enlist 0#first i.tnull ci`type; n#first i.tnull ci`type] ] };
+
+/ ---------------------------------------------------------------------------
+/ build + validate one entry from a plan op row (READ-ONLY; throws on bad input)
+/ ---------------------------------------------------------------------------
+i.entry:{[root;r]
+  op:r`op; tbl:r`table; col:r`column;
+  base:`op`seq`table`column`severity`detail`params!(op;r`seq;tbl;col;r`severity;r`detail;r`params);
+  $[op~`createTable;
+      base,`kind`pf`colz`dirs`isPart`fillv!(r[`params]`kind;r[`params]`partitionField;r[`params]`columns;();(r[`params]`kind)~`partitioned;()!());
+    op in `addColumn`dropColumn`setAttr`clearAttr`reorderColumns`reEnumerate;
+      [dirs:i.partDirs[root;tbl]; isPart:`partitioned~i.kindOf[root;tbl];
+       fillv:$[op~`addColumn; dirs!i.fillFor[;r`params] each dirs; ()!()];
+       / validation (fail before touching data)
+       if[op~`addColumn; {[a;v] if[not i.attrOK[a;v]; '"qm: apply: new column data does not satisfy attr"]}[r[`params]`attr;] each value fillv];
+       if[op~`setAttr;   {[d;col;a] if[not i.attrOK[a;get i.dpath[d;col]]; '"qm: apply: on-disk data does not satisfy attr ",string a]}[;col;r[`params]`attr] each dirs];
+       base,`dirs`isPart`fillv!(dirs;isPart;fillv)];
+    base ] };   / manual etc — kept for the report, never run
+
+/ ---------------------------------------------------------------------------
+/ per-op FILE TARGETS (pure) -> `backup`create!(backupPaths;createPaths)
+/ ---------------------------------------------------------------------------
+i.opTargets:{[root;e]
+  op:e`op; tbl:e`table; col:e`column; dirs:e`dirs;
+  symp:` sv root,`sym;
+  symBC:$[i.symExists root; (enlist symp;()); ((); enlist symp)];   / sym: (backup; create)
+  $[op in `setAttr`clearAttr;
+      `backup`create!(i.dpath[;col] each dirs; ());
+    `backup`create!(();()) ] };
+
+/ ---------------------------------------------------------------------------
+/ per-op RUN (writes). Each branch fans out across e`dirs.
+/ ---------------------------------------------------------------------------
+i.runOp:{[root;e]
+  op:e`op; tbl:e`table; col:e`column; dirs:e`dirs;
+  $[op~`setAttr;
+      {[col;a;dir] p:i.dpath[dir;col]; p set a#get p}[col;e[`params]`attr] each dirs;
+    '"qm: apply: unknown op ",string op ] };
+
+/ ---------------------------------------------------------------------------
+/ preflight (READ-ONLY): build entries, aggregate backup/create sets
+/ ---------------------------------------------------------------------------
+i.preflight:{[root;planResult;opts]
+  if[not all `applyable`ops in key planResult; '"qm: apply: malformed plan result"];
+  ops:planResult`ops;
+  exrows:select from ops where not op=`manual;
+  entries:i.entry[root;] each exrows;          / validates; may throw
+  tgts:i.opTargets[root;] each entries;
+  `entries`backup`create!(entries; raze tgts@\:`backup; raze tgts@\:`create) };
+
+/ ---------------------------------------------------------------------------
+/ execute: back up -> run in seq order -> rollback (restore + delete) on fail
+/ ---------------------------------------------------------------------------
+i.execute:{[root;wl;opts]
+  bdir:i.backupDir[root;opts];
+  es:wl`entries;
+  i.doBackup[bdir; distinct wl`backup];
+  failIdx:0N; i:0; n:count es;
+  while[(i<n)&null failIdx;
+    runok:1b~.[{[root;e] i.runOp[root;e]; 1b};(root;es i);{[e]0b}];
+    $[runok; i+:1; failIdx:i] ];
+  $[null failIdx;
+    `status`failIdx`backup!(`applied; 0N; bdir);
+    [i.restore[bdir; distinct wl`backup]; i.deleteCreated wl`create;
+     `status`failIdx`backup!(`rolledBack; failIdx; bdir)] ] };
+
+/ ---------------------------------------------------------------------------
+/ report: full plan ops + a status column keyed by seq
+/ ---------------------------------------------------------------------------
+i.report:{[ops;statusBySeq]
+  flip `seq`table`column`op`severity`status`detail!(
+    ops`seq; ops`table; ops`column; ops`op; ops`severity;
+    statusBySeq ops`seq; ops`detail) };
+
+/ ---------------------------------------------------------------------------
+/ public: execute a plan result against the HDB
+/ ---------------------------------------------------------------------------
+apply:{[root;planResult;opts]
+  if[not 11h=type key root; '"qm: apply: hdb path not found: ",string root];
+  o:i.normApplyOpts opts;
+  if[not all `applyable`ops in key planResult; '"qm: apply: malformed plan result"];
+  ops:planResult`ops;
+  / gate: refuse a non-applyable plan
+  if[not planResult`applyable;
+     :`status`ops`backup!(`blocked; i.report[ops; (exec seq from ops)!count[ops]#`skipped]; `)];
+  exrows:select from ops where not op=`manual;
+  if[0=count exrows;
+     :`status`ops`backup!(`noop; i.report[ops; (exec seq from ops)!count[ops]#`skipped]; `)];
+  wl:i.preflight[root;planResult;o];
+  if[$[`dryRun in key o; o`dryRun; 0b];
+     sd:(exec seq from ops)!count[ops]#`skipped;
+     sd[exrows`seq]:`planned;
+     :`status`ops`backup!(`dryRun; i.report[ops;sd]; `)];
+  r:i.execute[root;wl;o];
+  exseq:exrows`seq;
+  sd:(exec seq from ops)!count[ops]#`skipped;
+  $[r[`status]~`applied;
+     sd[exseq]:`done;
+     [sd[exseq]:`rolledBack; sd[exseq r`failIdx]:`failed] ];
+  `status`ops`backup!(r`status; i.report[ops;sd]; r`backup) };
+
 \d .

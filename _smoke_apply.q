@@ -48,6 +48,40 @@ chk["deleteCreated removed file"; not `x in key ` sv B,`p,`t];
 chk["deleteCreated removed dirs"; not `p in key B];
 rmrf "testhdb_bk";
 
+-1"--- apply: gate / noop / dryRun / setAttr e2e ---";
+rmrf "testhdb_s"; S:`:testhdb_s; ssd:` sv S,`inst;
+(` sv ssd,`sym)  set `AA`BB`CC;            / already sorted -> `s satisfiable
+(` sv ssd,`name) set `x`y`z;
+(` sv ssd,`.d)   set `sym`name;
+/ declared: set `s on sym (setAttr), everything else matches
+dinst:.qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`name;`symbol]);
+dr:.qm.diff[S; (enlist`inst)!enlist dinst; ()!()];
+pl:.qm.plan[dr; (enlist`inst)!enlist dinst];
+/ dryRun first: no writes
+resDry:.qm.apply[S; pl; (enlist`dryRun)!enlist 1b];
+chk["dryRun status";   resDry[`status]~`dryRun];
+chk["dryRun planned";  `planned in resDry[`ops]`status];
+chk["dryRun no attr";  `~attr get ` sv ssd,`sym];
+/ real apply
+res:.qm.apply[S; pl; ()!()];
+chk["setAttr applied";  res[`status]~`applied];
+chk["sym has s attr";   `s=attr get ` sv ssd,`sym];
+chk["report has done";  `done in res[`ops]`status];
+/ noop: re-apply same plan against the now-matching HDB
+dr2:.qm.diff[S; (enlist`inst)!enlist dinst; ()!()];
+pl2:.qm.plan[dr2; (enlist`inst)!enlist dinst];
+res2:.qm.apply[S; pl2; ()!()];
+chk["noop status"; res2[`status]~`noop];
+/ gate: a destructive plan is blocked
+ddrp:.qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]);   / drops `name
+plD:.qm.plan[.qm.diff[S;(enlist`inst)!enlist ddrp;()!()]; (enlist`inst)!enlist ddrp];
+resB:.qm.apply[S; plD; ()!()];
+chk["blocked status";   resB[`status]~`blocked];
+chk["blocked no write"; `name in get ` sv ssd,`.d];
+chk["bad opts throws";  thr[.qm.apply[S;pl;]; (enlist`bogus)!enlist 1]];
+chk["malformed plan throws"; thr[.qm.apply[S; (enlist`bogus)!enlist 1;]; ()!()]];
+rmrf "testhdb_s";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
