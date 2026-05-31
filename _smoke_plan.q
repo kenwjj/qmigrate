@@ -83,6 +83,14 @@ chk["reorderColumns op";    `reorderColumns~first pOrd[`ops]`op];
 chk["reorderColumns order"; `a`b~(first pOrd[`ops]`params)`order];
 chk["reorderColumns table-level"; `~first pOrd[`ops]`column];
 
+-1 "--- plan: reEnumerate ---";
+denum:.qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`sym;`symbol]);
+/ differ enumMismatch row: to=1b (declared enum expected), from=0b (disk raw)
+pEnum:.qm.plan[.qm.i.rollupWith[.qm.i.row[`trade;`sym;`enumMismatch;0b;1b;"enumeration state differs"]; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist denum];
+chk["reEnumerate op";       `reEnumerate~first pEnum[`ops]`op];
+chk["reEnumerate warning";  `warning~first pEnum[`ops]`severity];
+chk["reEnumerate param";    1b~(first pEnum[`ops]`params)`enumerate];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

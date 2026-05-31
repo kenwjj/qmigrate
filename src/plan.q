@@ -52,6 +52,9 @@ i.opFor:{[decl;row]
       / common columns); the rewritten .d must list every declared column.
       i.op[tbl;`;`reorderColumns;chg;sev;
            "rewrite .d to declared column order";(enlist`order)!enlist decl[`columns]`name];
+    chg~`enumMismatch;
+      i.op[tbl;col;`reEnumerate;chg;sev;
+           "re-enumerate ",string col;(enlist`enumerate)!enlist row`to];
     / unmanagedTable, skipped, unknown -> no op
     i.noOps ] };
 
