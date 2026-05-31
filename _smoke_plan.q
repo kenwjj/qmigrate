@@ -91,6 +91,18 @@ chk["reEnumerate op";       `reEnumerate~first pEnum[`ops]`op];
 chk["reEnumerate warning";  `warning~first pEnum[`ops]`severity];
 chk["reEnumerate param";    1b~(first pEnum[`ops]`params)`enumerate];
 
+-1 "--- plan: manual (recreate-class) ---";
+dman:.qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`a;`long]);
+rowsMan:(.qm.i.row[`trade;`a;`typeChange;`float;`long;"type differs"]),
+        (.qm.i.row[`trade;`a;`listChange;0b;1b;"list-ness differs"]),
+        (.qm.i.row[`trade;`;`kindChange;`splayed;`partitioned;"kind differs"]),
+        (.qm.i.row[`trade;`;`partitionChange;`month;`date;"partition differs"]);
+pMan:.qm.plan[.qm.i.rollupWith[rowsMan; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist dman];
+chk["manual for all 4 recreate changes"; 4=count select from pMan[`ops] where op=`manual];
+chk["manual keeps destructive sev"; all `destructive=exec severity from pMan[`ops] where op=`manual];
+chk["manual carries originating change"; `typeChange in exec change from pMan[`ops] where op=`manual];
+chk["manual detail mentions recreate"; all (exec detail from pMan[`ops] where op=`manual) like "*drop-and-recreate*"];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

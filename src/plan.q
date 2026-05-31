@@ -55,6 +55,9 @@ i.opFor:{[decl;row]
     chg~`enumMismatch;
       i.op[tbl;col;`reEnumerate;chg;sev;
            "re-enumerate ",string col;(enlist`enumerate)!enlist row`to];
+    chg in `typeChange`listChange`kindChange`partitionChange;
+      i.op[tbl;col;`manual;chg;sev;
+           string[chg]," requires drop-and-recreate (Phase 2)";()!()];
     / unmanagedTable, skipped, unknown -> no op
     i.noOps ] };
 
