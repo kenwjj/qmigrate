@@ -19,7 +19,7 @@ i.op:{[tbl;col;op;chg;sev;det;prm]
 
 / pull a declared column's full spec out of a section-6 columns table
 i.declCol:{[ct;c]
-  idx:first where ct[`name]=c;
+  if[null idx:first where ct[`name]=c; '"qm: declCol: column not found: ",string c];
   `type`list`attr`default`defaultFn!(
     ct[`type]idx; ct[`list]idx; ct[`attr]idx; ct[`default]idx; ct[`defaultFn]idx) };
 
@@ -35,7 +35,7 @@ i.opFor:{[decl;row]
        i.op[tbl;col;`addColumn;chg;sev;
             "add column ",string[col]," (",string[ci`type],")",
               $[not ci[`defaultFn]~`; ", computed default via ",string ci`defaultFn;
-                not ci[`default]~(::); ", default ",$[10h=type ci`default; ci`default; string ci`default];
+                not ci[`default]~(::); ", default ",$[10h=type ci`default; ci`default; 0>type ci`default; string ci`default; "(list)"];
                 ""];
             ci]];
     / unmanagedTable, skipped, unknown -> no op

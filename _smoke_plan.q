@@ -52,6 +52,7 @@ ax:select from pAdd[`ops] where column=`exchange;
 chk["addColumn op type";       `addColumn~first ax`op];
 chk["addColumn carries default";`NYSE~(first ax`params)`default];
 chk["addColumn carries attr";   `g~(first ax`params)`attr];
+chk["addColumn exchange detail";(first ax`detail) like "*default NYSE"];   / KDB-X like has no internal `*`
 al:select from pAdd[`ops] where column=`load_date;
 chk["addColumn defaultFn param";`.user.computeLoadDate~(first al`params)`defaultFn];
 chk["addColumn defaultFn detail"; (first al`detail) like "*computed default via*"];
