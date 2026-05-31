@@ -85,7 +85,10 @@ Create `_smoke_apply.q`:
 ok:0; fail:0;
 chk:{[d;c] $[c;[ok+:1;-1"  ok   ",d];[fail+:1;-1"  FAIL ",d]]};
 thr:{[f;a] 1b~@[f;a;{[e]1b}]};
-rmrf:{[d] @[{system $[.z.o like "w*";"rmdir /s /q ",ssr[d;"/";"\\"];"rm -rf ",d]};::;{}]};
+/ inner lambda takes [d] and d is passed via @[f;d;...] — a q lambda does NOT close over
+/ the enclosing local d (free vars resolve to globals), so the naive `{...d...}` form
+/ silently no-ops and leaks dirs, poisoning re-runs. Pass d in explicitly.
+rmrf:{[d] @[{[d] system $[.z.o like "w*";"rmdir /s /q ",ssr[d;"/";"\\"];"rm -rf ",d]}; d; {}]};
 
 -1"--- apply: low-level helpers ---";
 rmrf "testhdb_apply"; R:`:testhdb_apply; sd:` sv R,`inst;
@@ -996,8 +999,10 @@ rmrf "testhdb_rb"; RB:`:testhdb_rb; rbd:` sv RB,`inst;
 (` sv rbd,`name) set `x`y`z;
 (` sv rbd,`sym)  set `s#`a`b`c;
 (` sv rbd,`.d)   set `name`sym;
-/ declared: add `extra (addColumn) AND reorder columns -> 2 ops
-drb:.qm.schema[`inst] (.qm.splayed[]; .qm.col[`name;`symbol]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`extra;`long]);
+/ declared: add `extra (addColumn) AND reorder columns -> 2 ops.
+/ NB: declare `sym before `name (on-disk .d is `name`sym) so the common cols differ
+/ in relative order -> the differ emits colOrderChange -> a reorderColumns op to fail on.
+drb:.qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`name;`symbol]; .qm.col[`extra;`long]);
 plrb:.qm.plan[.qm.diff[RB;(enlist`inst)!enlist drb;()!()]; (enlist`inst)!enlist drb];
 / force the reorderColumns op to fail, AFTER addColumn has run
 realRun:.qm.i.runOp;

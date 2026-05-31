@@ -8,7 +8,10 @@
 ok:0; fail:0;
 chk:{[d;c] $[c;[ok+:1;-1"  ok   ",d];[fail+:1;-1"  FAIL ",d]]};
 thr:{[f;a] 1b~@[f;a;{[e]1b}]};
-rmrf:{[d] @[{system $[.z.o like "w*";"rmdir /s /q ",ssr[d;"/";"\\"];"rm -rf ",d]};::;{}]};
+/ NB: inner lambda takes [d] and d is passed via @[f;d;...]; a q lambda does NOT close
+/ over the enclosing local d (free vars resolve to globals), so the naive form silently
+/ no-ops and leaks dirs -> re-runs see stale state. Pass d in explicitly.
+rmrf:{[d] @[{[d] system $[.z.o like "w*";"rmdir /s /q ",ssr[d;"/";"\\"];"rm -rf ",d]}; d; {}]};
 
 -1"--- apply: low-level helpers ---";
 rmrf "testhdb_apply"; R:`:testhdb_apply; sd:` sv R,`inst;
