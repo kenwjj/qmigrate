@@ -102,6 +102,37 @@ chk["all in .d";           (get ` sv acd,`.d)~`k`flag`tags`note];
 chk["re-diff ok";          `ok~(.qm.diff[AC;(enlist`t)!enlist dac;()!()])`maxSeverity];
 rmrf "testhdb_ac";
 
+-1"--- apply: addColumn defaultFn + preflight throws ---";
+rmrf "testhdb_fn"; FN:`:testhdb_fn; fnd:` sv FN,`t;
+(` sv fnd,`a) set 10 20 30;
+(` sv fnd,`.d) set enlist `a;
+.user.mk:{[path;col] count[get ` sv path,`a]#42};      / returns a length-n long vector
+dfn:.qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.colx[`b;`long;`defaultFn`.user.mk]);
+plfn:.qm.plan[.qm.diff[FN;(enlist`t)!enlist dfn;()!()]; (enlist`t)!enlist dfn];
+resfn:.qm.apply[FN; plfn; ()!()];
+chk["defaultFn applied"; resfn[`status]~`applied];
+chk["defaultFn values";  (get ` sv fnd,`b)~3#42];
+/ missing defaultFn -> preflight throws, nothing created
+/ use a fresh HDB (only col a) so the plan is applyable (no destructive drop)
+rmrf "testhdb_bad"; FNB:`:testhdb_bad; fnbd:` sv FNB,`t;
+(` sv fnbd,`a) set 10 20 30;
+(` sv fnbd,`.d) set enlist `a;
+dbad:.qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.colx[`c;`long;`defaultFn`.user.nope]);
+plbad:.qm.plan[.qm.diff[FNB;(enlist`t)!enlist dbad;()!()]; (enlist`t)!enlist dbad];
+chk["missing defaultFn throws"; thr[.qm.apply[FNB;plbad;]; ()!()]];
+chk["throw left no col c";      not `c in get ` sv fnbd,`.d];
+rmrf "testhdb_bad";
+rmrf "testhdb_fn";
+/ unsatisfiable attribute -> preflight throws, nothing marked
+rmrf "testhdb_at"; AT:`:testhdb_at; atd:` sv AT,`t;
+(` sv atd,`u) set 1 1 2;                               / dups -> cannot be `u
+(` sv atd,`.d) set enlist `u;
+dat:.qm.schema[`t] (.qm.splayed[]; .qm.colx[`u;`long;`attr`u]);    / declared `u -> setAttr
+plat:.qm.plan[.qm.diff[AT;(enlist`t)!enlist dat;()!()]; (enlist`t)!enlist dat];
+chk["unsatisfiable attr throws"; thr[.qm.apply[AT;plat;]; ()!()]];
+chk["attr-throw left col unmarked"; `~attr get ` sv atd,`u];
+rmrf "testhdb_at";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
