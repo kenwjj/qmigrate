@@ -26,8 +26,12 @@ i.declCol:{[ct;c]
 / map one differ row -> 0+ plan op rows. decl is the table's schema dict, or (::) if undeclared.
 i.opFor:{[decl;row]
   chg:row`change; tbl:row`table; col:row`column; sev:row`severity;
-  / branches added per task; default: no op
-  i.noOps };
+  $[chg~`newTable;
+      i.op[tbl;`;`createTable;chg;sev;
+           "create ",string[decl`kind]," table ",string tbl;
+           `kind`partitionField`columns!(decl`kind; decl`partitionField; decl`columns)];
+    / unmanagedTable, skipped, unknown -> no op
+    i.noOps ] };
 
 / intra-table op precedence (spec section 4)
 i.opRank:`createTable`addColumn`dropColumn`setAttr`clearAttr`reEnumerate`reorderColumns`manual!til 8;
