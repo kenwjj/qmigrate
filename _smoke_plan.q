@@ -100,7 +100,7 @@ rowsMan:(.qm.i.row[`trade;`a;`typeChange;`float;`long;"type differs"]),
 pMan:.qm.plan[.qm.i.rollupWith[rowsMan; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist dman];
 chk["manual for all 4 recreate changes"; 4=count select from pMan[`ops] where op=`manual];
 chk["manual keeps destructive sev"; all `destructive=exec severity from pMan[`ops] where op=`manual];
-chk["manual carries originating change"; `typeChange in exec change from pMan[`ops] where op=`manual];
+chk["manual carries originating change"; all `typeChange`listChange`kindChange`partitionChange in exec change from pMan[`ops] where op=`manual];
 chk["manual detail mentions recreate"; all (exec detail from pMan[`ops] where op=`manual) like "*drop-and-recreate*"];
 
 -1 "";
