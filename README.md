@@ -138,7 +138,7 @@ plan`applyable      / carried from the differ result (the apply layer gates on t
 plan`ops            / ordered table of operations: seq table column op change severity detail params
 ```
 
-Each row of `plan`ops` is one operation, ordered for execution (`seq` 1..n).
+Each row of ``plan`ops`` is one operation, ordered for execution (`seq` 1..n).
 Recreate-class changes (`typeChange`/`listChange`/`kindChange`/`partitionChange`)
 appear as `manual` operations — visible flags that a drop-and-recreate is needed
 (Phase 2), not executable steps. The plan layer only sequences — the apply layer
