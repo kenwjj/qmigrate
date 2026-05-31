@@ -297,7 +297,7 @@ In `src/plan.q`, insert this branch into the `$[...]` in `i.opFor`, immediately 
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=18 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=19 fail=0`.
 
 - [ ] **Step 5: Commit**
 
@@ -351,7 +351,7 @@ Insert before the `/ unmanagedTable` comment in `i.opFor`:
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=21 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=22 fail=0`.
 
 - [ ] **Step 5: Commit**
 
@@ -399,7 +399,7 @@ Insert before the `/ unmanagedTable` comment in `i.opFor`:
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=24 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=25 fail=0`.
 
 - [ ] **Step 5: Commit**
 
@@ -447,7 +447,7 @@ Insert before the `/ unmanagedTable` comment in `i.opFor`:
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=27 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=28 fail=0`.
 
 - [ ] **Step 5: Commit**
 
@@ -496,7 +496,7 @@ Insert before the `/ unmanagedTable` comment in `i.opFor`:
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=30 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=31 fail=0`.
 
 - [ ] **Step 5: Commit**
 
@@ -549,7 +549,7 @@ Insert before the `/ unmanagedTable` comment in `i.opFor`:
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=34 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=35 fail=0`.
 
 - [ ] **Step 5: Commit**
 
@@ -594,7 +594,7 @@ chk["unmanaged+skipped -> 0 ops"; 0=count pNone`ops];
 - [ ] **Step 2: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=37 fail=0`. (These should pass immediately — the behaviour is already implemented. If `ordering: op sequence` fails, inspect `i.opRank` order in `src/plan.q` against spec §4.)
+Expected: all checks `ok`, `RESULT  ok=38 fail=0`. (These should pass immediately — the behaviour is already implemented. If `ordering: op sequence` fails, inspect `i.opRank` order in `src/plan.q` against spec §4.)
 
 - [ ] **Step 3: Commit**
 
@@ -656,7 +656,7 @@ chk["e2e applyable when allowed"; pDok[`applyable]~1b];
 - [ ] **Step 2: Run to verify it passes**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: all checks `ok`, `RESULT  ok=43 fail=0`.
+Expected: all checks `ok`, `RESULT  ok=44 fail=0`.
 
 - [ ] **Step 3: Commit**
 
@@ -744,7 +744,7 @@ to:
 - [ ] **Step 5: Verify the smoke check still passes and commit**
 
 Run: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`
-Expected: `RESULT  ok=43 fail=0` (README changes don't affect tests; this just confirms nothing broke).
+Expected: `RESULT  ok=44 fail=0` (README changes don't affect tests; this just confirms nothing broke).
 
 ```
 git add README.md
@@ -755,7 +755,7 @@ git commit -m "docs(plan): document the plan layer in the README"
 
 ## Final verification
 
-- [ ] Run the full plan harness: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q` → `RESULT  ok=43 fail=0`.
+- [ ] Run the full plan harness: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q` → `RESULT  ok=44 fail=0`.
 - [ ] Run the differ harness to confirm no regression: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q` → `fail=0`.
 - [ ] Run the DSL harness: `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke.q -q` → `fail=0`.
 ```
