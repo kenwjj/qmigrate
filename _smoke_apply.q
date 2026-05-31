@@ -133,6 +133,21 @@ chk["unsatisfiable attr throws"; thr[.qm.apply[AT;plat;]; ()!()]];
 chk["attr-throw left col unmarked"; `~attr get ` sv atd,`u];
 rmrf "testhdb_at";
 
+-1"--- apply: dropColumn (destructive, allowDestructive) ---";
+rmrf "testhdb_dc"; DC:`:testhdb_dc; dcd:` sv DC,`t;
+(` sv dcd,`keep) set 1 2 3;
+(` sv dcd,`gone) set `a`b`c;
+(` sv dcd,`.d)   set `keep`gone;
+ddc:.qm.schema[`t] (.qm.splayed[]; .qm.col[`keep;`long]);     / `gone not declared -> drop
+/ destructive: must opt in at the differ for the plan to be applyable
+pldc:.qm.plan[.qm.diff[DC;(enlist`t)!enlist ddc;(enlist`allowDestructive)!enlist 1b]; (enlist`t)!enlist ddc];
+resdc:.qm.apply[DC; pldc; ()!()];
+chk["dropColumn applied"; resdc[`status]~`applied];
+chk["gone removed from .d"; (get ` sv dcd,`.d)~enlist `keep];
+chk["gone file deleted";    not `gone in key dcd];
+chk["re-diff ok";           `ok~(.qm.diff[DC;(enlist`t)!enlist ddc;()!()])`maxSeverity];
+rmrf "testhdb_dc";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
