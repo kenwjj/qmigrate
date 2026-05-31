@@ -48,6 +48,8 @@ i.opFor:{[decl;row]
       i.op[tbl;col;`dropColumn;chg;sev;
            "drop column ",string[col]," from disk";()!()];
     chg~`colOrderChange;
+      / order = full declared column set, not row`to (which carries only the
+      / common columns); the rewritten .d must list every declared column.
       i.op[tbl;`;`reorderColumns;chg;sev;
            "rewrite .d to declared column order";(enlist`order)!enlist decl[`columns]`name];
     / unmanagedTable, skipped, unknown -> no op
