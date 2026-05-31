@@ -44,6 +44,9 @@ i.opFor:{[decl;row]
               "clear attribute on ",string col;(enlist`from)!enlist row`from];
          i.op[tbl;col;`setAttr;chg;sev;
               "apply `",string[row`to]," attribute to ",string col;(enlist`attr)!enlist row`to]];
+    chg~`dropColumn;
+      i.op[tbl;col;`dropColumn;chg;sev;
+           "drop column ",string[col]," from disk";()!()];
     / unmanagedTable, skipped, unknown -> no op
     i.noOps ] };
 

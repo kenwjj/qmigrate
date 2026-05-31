@@ -69,6 +69,13 @@ chk["setAttr param"; `p~(first exec params from pAttr[`ops] where column=`sym)`a
 chk["clearAttr op";  `clearAttr in exec op from pAttr[`ops] where column=`px];
 chk["clearAttr param";`g~(first exec params from pAttr[`ops] where column=`px)`from];
 
+-1 "--- plan: dropColumn ---";
+ddrop:.qm.schema[`trade] (.qm.splayed[]; .qm.col[`keep;`long]);
+pDrop:.qm.plan[.qm.i.rollupWith[.qm.i.row[`trade;`gone;`dropColumn;`float;::;"on disk, not declared"]; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist ddrop];
+chk["dropColumn op";       `dropColumn~first pDrop[`ops]`op];
+chk["dropColumn destructive"; `destructive~first pDrop[`ops]`severity];
+chk["dropColumn column";   `gone~first pDrop[`ops]`column];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
