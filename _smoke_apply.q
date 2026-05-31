@@ -82,6 +82,26 @@ chk["bad opts throws";  thr[.qm.apply[S;pl;]; (enlist`bogus)!enlist 1]];
 chk["malformed plan throws"; thr[.qm.apply[S; (enlist`bogus)!enlist 1;]; ()!()]];
 rmrf "testhdb_s";
 
+-1"--- apply: addColumn (literal / list / typed-null) ---";
+rmrf "testhdb_ac"; AC:`:testhdb_ac; acd:` sv AC,`t;
+(` sv acd,`k) set 1 2 3;
+(` sv acd,`.d) set enlist `k;
+dac:.qm.schema[`t] (
+  .qm.splayed[];
+  .qm.col [`k;     `long];
+  .qm.colx[`flag;  `boolean; (enlist`default)!enlist 1b];   / literal default
+  .qm.colx[`tags;  `symbol;  `default`list!(`x;1b)];         / list col, value-per-cell
+  .qm.col [`note;  `symbol] );                                / no default -> typed null
+plac:.qm.plan[.qm.diff[AC;(enlist`t)!enlist dac;()!()]; (enlist`t)!enlist dac];
+resac:.qm.apply[AC; plac; ()!()];
+chk["addColumn applied";   resac[`status]~`applied];
+chk["literal default";     (get ` sv acd,`flag)~3#1b];
+chk["list default cell";   (get ` sv acd,`tags)~3#enlist enlist `x];
+chk["typed-null default";  (get ` sv acd,`note)~3#`];
+chk["all in .d";           (get ` sv acd,`.d)~`k`flag`tags`note];
+chk["re-diff ok";          `ok~(.qm.diff[AC;(enlist`t)!enlist dac;()!()])`maxSeverity];
+rmrf "testhdb_ac";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

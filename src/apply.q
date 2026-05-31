@@ -78,7 +78,7 @@ i.fillFor:{[dir;ci]
       [f:@[get;ci`defaultFn;{[s;e]'"qm: apply: defaultFn not defined: ",string s}[ci`defaultFn]];
        v:f[dir;`col]; if[not n=count v; '"qm: apply: defaultFn returned wrong length"]; v];
     not ci[`default]~(::);
-      $[ci`list; n#enlist ci`default; n#ci`default];
+      $[ci`list; n#enlist enlist ci`default; n#ci`default];
     / neither default nor defaultFn -> typed null (scalar) / empty typed list (list col)
     $[ci`list; n#enlist 0#first i.tnull ci`type; n#first i.tnull ci`type] ] };
 
@@ -106,7 +106,11 @@ i.opTargets:{[root;e]
   op:e`op; tbl:e`table; col:e`column; dirs:e`dirs;
   symp:` sv root,`sym;
   symBC:$[i.symExists root; (enlist symp;()); ((); enlist symp)];   / sym: (backup; create)
-  $[op in `setAttr`clearAttr;
+  $[op~`addColumn;
+      [b:i.dpath[;`.d] each dirs; c:i.dpath[;col] each dirs;
+       if[e`isPart; if[(e[`params]`type)~`symbol; b,:symBC 0; c,:symBC 1]];
+       `backup`create!(b;c)];
+    op in `setAttr`clearAttr;
       `backup`create!(i.dpath[;col] each dirs; ());
     `backup`create!(();()) ] };
 
@@ -115,7 +119,14 @@ i.opTargets:{[root;e]
 / ---------------------------------------------------------------------------
 i.runOp:{[root;e]
   op:e`op; tbl:e`table; col:e`column; dirs:e`dirs;
-  $[op~`setAttr;
+  $[op~`addColumn;
+      {[root;e;dir]
+        ci:e`params; v:e[`fillv]dir;
+        v:$[e[`isPart]&(ci`type)~`symbol; i.enum[root;v]; v];   / enumerate if partitioned symbol
+        v:$[(ci`attr)~`; v; (ci`attr)#v];                        / apply declared attr
+        (i.dpath[dir;e`column]) set v;
+        (i.dpath[dir;`.d]) set (i.getD dir),e`column }[root;e] each dirs;
+    op~`setAttr;
       {[col;a;dir] p:i.dpath[dir;col]; p set a#get p}[col;e[`params]`attr] each dirs;
     '"qm: apply: unknown op ",string op ] };
 
