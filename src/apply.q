@@ -116,6 +116,15 @@ i.opTargets:{[root;e]
       `backup`create!(i.dpath[;`.d] each dirs; ());
     op~`reEnumerate;
       `backup`create!((i.dpath[;col] each dirs),symBC 0; symBC 1);
+    op~`createTable;
+      $[e`isPart;
+         [sdir:i.sentinelDir e`pf; partdir:` sv root,`$sdir; pdir:` sv partdir,tbl;
+          hasSym:any (e[`colz]`type)~\:`symbol;
+          cre:(i.dpath[pdir;] each (e[`colz]`name),`.d),enlist pdir;
+          if[not (`$sdir) in key root; cre,:enlist partdir];
+          `backup`create!($[hasSym;symBC 0;()]; cre,$[hasSym;symBC 1;()])];
+         [dir:` sv root,tbl;
+          `backup`create!((); (i.dpath[dir;] each (e[`colz]`name),`.d),enlist dir)] ];
     op in `setAttr`clearAttr;
       `backup`create!(i.dpath[;col] each dirs; ());
     `backup`create!(();()) ] };
@@ -140,6 +149,12 @@ i.runOp:{[root;e]
       {[ord;dir] (i.dpath[dir;`.d]) set ord}[e[`params]`order] each dirs;
     op~`reEnumerate;
       {[root;col;dir] p:i.dpath[dir;col]; p set i.enum[root; get p]}[root;col] each dirs;
+    op~`createTable;
+      $[e`isPart;
+        '"qm: apply: partitioned createTable not yet implemented";
+        [dir:` sv root,tbl; colz:e`colz;
+         {[dir;colz;j] v:0#first i.tnull colz[`type]j; a:colz[`attr]j; (i.dpath[dir;colz[`name]j]) set $[a~`;v;a#v]}[dir;colz] each til count colz`name;
+         (i.dpath[dir;`.d]) set colz`name] ];
     op~`setAttr;
       {[col;a;dir] p:i.dpath[dir;col]; p set a#get p}[col;e[`params]`attr] each dirs;
     '"qm: apply: unknown op ",string op ] };

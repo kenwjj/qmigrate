@@ -188,6 +188,20 @@ chk["col now enum-typed";  (type get ` sv ped,`s) within 20 76h];
 chk["values preserved";    `AA`BB~get[` sv EN,`sym] get ` sv ped,`s];
 rmrf "testhdb_en";
 
+-1"--- apply: createTable splayed ---";
+rmrf "testhdb_ct"; CT:`:testhdb_ct;
+(` sv CT,`marker) set 1 2 3;                     / make CT a real dir (no `inst yet)
+dct:.qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`u]; .qm.col[`name;`symbol]; .qm.col[`active;`boolean]);
+plct:.qm.plan[.qm.diff[CT;(enlist`inst)!enlist dct;()!()]; (enlist`inst)!enlist dct];
+chk["plan has createTable"; `createTable in plct[`ops]`op];
+resct:.qm.apply[CT; plct; ()!()];
+chk["createTable applied"; resct[`status]~`applied];
+ctd:` sv CT,`inst;
+chk["splayed .d";          (get ` sv ctd,`.d)~`sym`name`active];
+chk["splayed empty";       0=count get ` sv ctd,`sym];
+chk["re-diff ok";          `ok~(.qm.diff[CT;(enlist`inst)!enlist dct;()!()])`maxSeverity];
+rmrf "testhdb_ct";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
