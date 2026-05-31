@@ -2,7 +2,7 @@
 
 Schema migration tooling for kdb+/q. Declare table schemas as data, diff them against a live HDB, and apply the changes safely.
 
-> **Status:** Phase 1, in development. The native q schema DSL and the differ are implemented and verified; the plan / apply / report layers are not yet built.
+> **Status:** Phase 1, in development. The native q schema DSL, the differ, and the plan layer are implemented and verified; the apply / report layers are not yet built.
 
 ## What it does
 
@@ -121,15 +121,41 @@ To diff a single declared table instead of a whole directory, use
 `.qm.diffTable[hdbPath; declared; opts]` with one schema dict
 (e.g. ``.qm.loadSchemas[`:schemas]`trade``) in place of the dict.
 
+## Plan
+
+`src/plan.q` turns a differ result plus the declared schemas into an ordered,
+pure migration plan. It performs no disk I/O — the differ already read the HDB.
+
+```q
+\l src/qm.q
+\l src/diff.q
+\l src/plan.q
+schemas: .qm.loadSchemas `:schemas;
+diffResult: .qm.diff[`:/path/to/hdb; schemas; ()!()];
+plan: .qm.plan[diffResult; schemas];
+plan`maxSeverity    / carried from the differ result
+plan`applyable      / carried from the differ result (the apply layer gates on this)
+plan`ops            / ordered table of operations: seq table column op change severity detail params
+```
+
+Each row of `plan`ops` is one operation, ordered for execution (`seq` 1..n).
+Recreate-class changes (`typeChange`/`listChange`/`kindChange`/`partitionChange`)
+appear as `manual` operations — visible flags that a drop-and-recreate is needed
+(Phase 2), not executable steps. The plan layer only sequences — the apply layer
+(later) executes. Design:
+**[docs/superpowers/specs/2026-05-31-plan-layer-design.md](docs/superpowers/specs/2026-05-31-plan-layer-design.md)**.
+
 ## Layout
 
 ```
 src/qm.q          the .qm DSL implementation
 src/diff.q        the differ (.qm.diff / .qm.diffTable); loaded after qm.q
+src/plan.q        the plan layer (.qm.plan); loaded after diff.q
 schemas/          example schema files (one table per file; loader recurses)
 schema-spec.md    canonical DSL specification (v0.1)
 _smoke.q          manual verification check for the DSL
 _smoke_diff.q     manual verification check for the differ (builds a temp HDB)
+_smoke_plan.q     manual verification check for the plan layer
 ```
 
 ## Running
@@ -154,7 +180,7 @@ q _smoke.q -q
 
 ## Testing
 
-No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. A proper framework is still to be chosen.
+No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. `_smoke_plan.q` covers the plan layer — it builds differ results (both hand-built and from a throwaway HDB) and asserts every operation in the catalog, the execution ordering, and `applyable` propagation. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`. A proper framework is still to be chosen.
 
 ## Phase 1 scope
 
