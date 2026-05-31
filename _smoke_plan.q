@@ -58,6 +58,16 @@ chk["addColumn defaultFn param";`.user.computeLoadDate~(first al`params)`default
 chk["addColumn defaultFn detail"; (first al`detail) like "*computed default via*"];
 chk["addColumn two ops";        2=count select from pAdd[`ops] where op=`addColumn];
 
+-1 "--- plan: attrChange ---";
+dattr:.qm.schema[`trade] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`px;`float]);
+/ declared attr `p, disk none -> setAttr ; declared none, disk `g -> clearAttr
+rowsAttr:(.qm.i.row[`trade;`sym;`attrChange;`;`p;"attr differs"]),
+         (.qm.i.row[`trade;`px; `attrChange;`g;`;"attr differs"]);
+pAttr:.qm.plan[.qm.i.rollupWith[rowsAttr; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist dattr];
+chk["setAttr op";    `setAttr in exec op from pAttr[`ops] where column=`sym];
+chk["setAttr param"; `p~(first exec params from pAttr[`ops] where column=`sym)`attr];
+chk["clearAttr op";  `clearAttr in exec op from pAttr[`ops] where column=`px];
+
 -1 "";
 -1 "RESULT  ok=",string[ok]," fail=",string fail;
 exit fail

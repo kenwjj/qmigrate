@@ -38,6 +38,12 @@ i.opFor:{[decl;row]
                 not ci[`default]~(::); ", default ",$[10h=type ci`default; ci`default; 0>type ci`default; string ci`default; "(list)"];
                 ""];
             ci]];
+    chg~`attrChange;
+      $[(row`to)~`;
+         i.op[tbl;col;`clearAttr;chg;sev;
+              "clear attribute on ",string col;(enlist`from)!enlist row`from];
+         i.op[tbl;col;`setAttr;chg;sev;
+              "apply `",string[row`to]," attribute to ",string col;(enlist`attr)!enlist row`to]];
     / unmanagedTable, skipped, unknown -> no op
     i.noOps ] };
 
