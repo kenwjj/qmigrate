@@ -216,6 +216,42 @@ chk["sym col enum-typed";  (type get ` sv pdir,`sym) within 20 76h];
 chk["re-diff no newTable"; not `newTable in exec change from (.qm.diff[CP;(enlist`trade)!enlist dcp;()!()])`rows];
 rmrf "testhdb_cp";
 
+-1"--- apply: rollback on mid-run failure ---";
+rmrf "testhdb_rb"; RB:`:testhdb_rb; rbd:` sv RB,`inst;
+(` sv rbd,`name) set `x`y`z;
+(` sv rbd,`sym)  set `s#`a`b`c;
+(` sv rbd,`.d)   set `name`sym;
+/ declared: sym BEFORE name (forces reorderColumns) AND add `extra -> 2 ops
+drb:.qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`name;`symbol]; .qm.col[`extra;`long]);
+plrb:.qm.plan[.qm.diff[RB;(enlist`inst)!enlist drb;()!()]; (enlist`inst)!enlist drb];
+/ force the reorderColumns op to fail, AFTER addColumn has run
+realRun:.qm.i.runOp;
+.qm.i.runOp:{[root;e] if[e[`op]~`reorderColumns; '"boom"]; realRun[root;e]};
+dBefore:get ` sv rbd,`.d;
+resrb:.qm.apply[RB; plrb; ()!()];
+.qm.i.runOp:realRun;                              / restore the real handler
+chk["rollback status";       resrb[`status]~`rolledBack];
+chk["rollback restored .d";  (get ` sv rbd,`.d)~dBefore];
+chk["rollback removed extra";not `extra in key rbd];
+chk["report marks failed";   `failed in resrb[`ops]`status];
+rmrf "testhdb_rb";
+
+-1"--- apply: multi-partition fan-out + idempotency ---";
+rmrf "testhdb_mp"; MP:`:testhdb_mp;
+(` sv MP,`sym) set `$();
+/ two partitions, table q with one col `time
+{[MP;d] pd:` sv MP,(`$d),`q; (` sv pd,`time) set 2#0Np; (` sv pd,`.d) set enlist `time}[MP] each ("2024.01.01";"2024.01.02");
+dmp:.qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`flag;`boolean;(enlist`default)!enlist 0b]);
+plmp:.qm.plan[.qm.diff[MP;(enlist`q)!enlist dmp;()!()]; (enlist`q)!enlist dmp];
+resmp:.qm.apply[MP; plmp; ()!()];
+chk["fan-out applied"; resmp[`status]~`applied];
+chk["flag in partition 1"; `flag in get ` sv MP,`2024.01.01,`q,`.d];
+chk["flag in partition 2"; `flag in get ` sv MP,`2024.01.02,`q,`.d];
+/ idempotency: re-plan + re-apply against the now-matching HDB -> noop
+plmp2:.qm.plan[.qm.diff[MP;(enlist`q)!enlist dmp;()!()]; (enlist`q)!enlist dmp];
+chk["idempotent noop"; (.qm.apply[MP; plmp2; ()!()])[`status]~`noop];
+rmrf "testhdb_mp";
+
 -1"";
 -1"RESULT  ok=",string[ok]," fail=",string fail;
 exit fail
