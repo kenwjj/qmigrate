@@ -21,3 +21,6 @@ Thumbs.db
 
 # test hdb fixture (machine-specific; never commit)
 hdb/
+
+# apply/diff/plan smoke-test throwaway HDBs (machine-specific; never commit)
+testhdb_*/
