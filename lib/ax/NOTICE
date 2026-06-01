@@ -1,0 +1,11 @@
+These files are a minimal subset of the KX Developer "AX libraries" suite
+(qcumber and its load-time dependency closure), extracted from a local
+KX Developer 1.5.4 installation for use as this project's test framework.
+
+They are proprietary to KX Systems and licensed under the KX EULA. They are
+NOT covered by this repository's license and must NOT be redistributed outside
+this private repository. Source: KX Developer (https://code.kx.com/developer).
+
+Provenance: ax-libraries/ws/{*.q_ closure of qcumber.q_} + ws/lib/win_x64/
+{q_fs,q_pcre,q_pcre2,q_util,pcre2-8}.dll, relocated to ws/lib/ so the AX loader
+resolves them on KDB-X 5.0 (.z.o=`w64).

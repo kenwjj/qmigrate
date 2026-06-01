@@ -2,6 +2,8 @@
 
 Schema migration tooling for kdb+/q. Declare table schemas as data, diff them against a live HDB, and apply the changes safely.
 
+The model is borrowed from Infrastructure-as-Code tools like [Terraform](https://www.terraform.io/): you describe the *desired* state declaratively, the tool computes the difference against the *current* state, shows you a **plan** of exactly what will change, and only then **applies** it. qmigrate brings that declare → diff → plan → apply loop to kdb+ on-disk schemas.
+
 > **Status:** Phase 1, in development. The native q schema DSL, the differ, the plan layer, and the apply layer are implemented and verified; the report layer is not yet built.
 
 ## What it does
@@ -10,9 +12,39 @@ qmigrate separates *declaring* a schema from *mutating* on-disk data:
 
 1. **Declare** — write one `.q` file per table describing its shape, columns, types, attributes, and defaults. Schema files are pure data (no side effects).
 2. **Load** — `.qm.loadSchemas` reads a directory of schema files into a single normalised internal representation.
-3. **Diff** — `.qm.diff` compares the declared schema against an existing HDB and classifies every difference by severity. **plan / apply** — produce a migration plan and apply it to the HDB.
+3. **Diff** — `.qm.diff` compares the declared schema against an existing HDB and classifies every difference by severity (read-only).
+4. **Plan** — `.qm.plan` turns the diff into an ordered list of concrete operations (pure; no disk I/O).
+5. **Apply** — `.qm.apply` executes the plan against the HDB, with backup-and-rollback safety (the only layer that writes).
 
 Two input formats produce the same internal representation: the **native q DSL** (this phase) and **Delta Control XML** (separate spec, later phase).
+
+## The pipeline: diff → plan → apply
+
+The three migration layers form a one-directional pipeline. Each layer consumes
+the previous one's output, and the `maxSeverity` / `applyable` gate is carried
+through unchanged from diff to apply.
+
+```mermaid
+flowchart LR
+    schemas[declared schemas] --> diff
+    hdb[("HDB on disk")] --> diff
+    diff["diff<br/>(read)"] --> plan["plan<br/>(pure)"] --> apply["apply<br/>(write)"] --> hdb2[("HDB on disk")]
+```
+
+| Layer | Reads disk? | Writes disk? | Answers | Output |
+|-------|:-----------:|:------------:|---------|--------|
+| **diff** (`.qm.diff`)   | yes | no  | *What differs between the declaration and the HDB?* | classified diff rows + severity rollup |
+| **plan** (`.qm.plan`)   | no  | no  | *What operations close that gap, and in what order?* | ordered `ops` table |
+| **apply** (`.qm.apply`) | yes | yes | *Carry out the plan — safely, or not at all.* | per-op status report + backup path |
+
+- **diff** is the only layer that inspects the HDB to discover differences. It
+  detects and classifies, but never acts.
+- **plan** is purely a transform: differ result plus declared schemas in, an
+  ordered, executable operation list out. It touches no disk, so the plan can be
+  inspected and reviewed before anything is mutated.
+- **apply** is the only layer that writes. It re-reads the HDB for a read-only
+  preflight, backs up every file it will touch, runs the ops, and rolls back on
+  any failure. A non-`applyable` plan is refused outright.
 
 ## The schema DSL
 
@@ -139,6 +171,18 @@ plan`ops            / ordered table of operations: seq table column op change se
 ```
 
 Each row of ``plan`ops`` is one operation, ordered for execution (`seq` 1..n).
+The `op` column names the concrete action:
+
+| `op` | Meaning |
+|------|---------|
+| `createTable`           | create a table absent from the HDB |
+| `addColumn`             | add a declared column, back-filled with its default / `defaultFn` / typed null |
+| `dropColumn`            | remove an on-disk column not in the declaration |
+| `setAttr` / `clearAttr` | apply or remove a column attribute (`p`/`s`/`u`/`g`) |
+| `reEnumerate`           | re-enumerate a symbol column against the root sym file |
+| `reorderColumns`        | rewrite `.d` to the declared column order |
+| `manual`                | a recreate-class change flagged for Phase 2 — never executed |
+
 Recreate-class changes (`typeChange`/`listChange`/`kindChange`/`partitionChange`)
 appear as `manual` operations — visible flags that a drop-and-recreate is needed
 (Phase 2), not executable steps. The plan layer only sequences — the apply layer
@@ -162,13 +206,37 @@ schemas: .qm.loadSchemas `:schemas;
 diffResult: .qm.diff[`:/path/to/hdb; schemas; ()!()];
 plan:       .qm.plan[diffResult; schemas];
 result:     .qm.apply[`:/path/to/hdb; plan; ()!()];
-result`status   / `applied | `rolledBack | `dryRun | `blocked | `noop
+result`status   / overall: `applied | `rolledBack | `dryRun | `blocked | `noop
 result`ops      / report table: seq table column op severity status detail
-result`backup   / backup dir path (left in place on success), or ` when none
+result`backup   / backup dir path (kept on `applied` and `rolledBack`), or ` when nothing was backed up
 
-/ preview without writing:
+/ preview without writing (every executable op is reported `planned`):
 .qm.apply[`:/path/to/hdb; plan; (enlist`dryRun)!enlist 1b];
+
+/ override the backup location (default: <hdb>/.qmbackup):
+.qm.apply[`:/path/to/hdb; plan; (enlist`backupDir)!enlist `:/path/to/backup];
 ```
+
+**Options.** `dryRun` (`1b` to validate and plan the writes without touching
+disk) and `backupDir` (a file symbol overriding where backups are written;
+defaults to `<hdb>/.qmbackup`). Any other option key is rejected.
+
+**Overall `status`** is one of: `applied` (every op ran), `rolledBack` (an op
+failed and all changes were reverted), `dryRun` (preview only), `blocked`
+(`plan`applyable` was `0b` — nothing ran), or `noop` (the plan held no
+executable ops, e.g. only `manual` ones).
+
+**Per-op `status`** in ``result`ops`` is one of: `done` (executed), `planned`
+(dry run only), `skipped` (a `manual` op, never run), `failed` (the op that
+broke the run), or `rolledBack` (an op that had run but was reverted after a
+later failure).
+
+**Safety model.** A read-only preflight builds and validates every operation and
+resolves any `defaultFn` references. Apply then backs up every file it will
+touch, runs the ops in `seq` order (fanning out across partitions), and on any
+failure rolls back in two parts: it restores the backed-up files **and** deletes
+files it newly created. The backup directory is left in place on both `applied`
+and `rolledBack` — inspect or delete it yourself.
 
 Apply refuses to mutate when `plan`applyable` is `0b` (status `blocked`); opt in
 to destructive changes by re-running `diff`/`plan` with `allowDestructive`.
@@ -178,41 +246,73 @@ Recreate-class `manual` ops are reported `skipped`, never executed. Design:
 ## Layout
 
 ```
-src/qm.q          the .qm DSL implementation
-src/diff.q        the differ (.qm.diff / .qm.diffTable); loaded after qm.q
-src/plan.q        the plan layer (.qm.plan); loaded after diff.q
-src/apply.q       the apply layer (.qm.apply); loaded after plan.q
-schemas/          example schema files (one table per file; loader recurses)
-schema-spec.md    canonical DSL specification (v0.1)
-_smoke.q          manual verification check for the DSL
-_smoke_diff.q     manual verification check for the differ (builds a temp HDB)
-_smoke_plan.q     manual verification check for the plan layer
-_smoke_apply.q    manual verification check for the apply layer
+.
+├── src/
+│   ├── qm.q         the .qm DSL implementation
+│   ├── diff.q       the differ (.qm.diff / .qm.diffTable); loaded after qm.q
+│   ├── plan.q       the plan layer (.qm.plan); loaded after diff.q
+│   └── apply.q      the apply layer (.qm.apply); loaded after plan.q
+├── schemas/         example schema files (one table per file; loader recurses)
+├── schema-spec.md   canonical DSL specification (v0.1)
+├── test/
+│   ├── run.q        qcumber runner: q test/run.q -q (exits non-zero on any failure)
+│   ├── helpers.q    shared test helpers (thr, rmrf, mkcols, mkrep)
+│   ├── *.quke       qcumber tests, one per src layer (qm, diff, plan, apply)
+│   └── _smoke*.q    original hand-rolled harnesses, kept as a dependency-free fallback
+└── lib/ax/          vendored minimal qcumber (KX AX libraries; proprietary -- see lib/ax/NOTICE)
 ```
 
 ## Running
 
 Requires kdb+/q. Developed against **KDB-X 5.0**.
 
-Load the DSL into a q session:
+> On Windows with the free KDB-X edition the license lives at `C:\q\kc.lic`; set
+> `QLIC=C:\q` so q can find it. The full invocation used here is
+> `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe <script> -q`.
+
+Load the DSL into a q session and read a directory of schema files:
 
 ```q
 \l src/qm.q
 schemas: .qm.loadSchemas `:schemas;
 ```
 
-Run the smoke check (exits non-zero on any failure):
+`schemas` is now one dict keyed by table name — inspect it, or feed it to the
+migration layers. Load `src/diff.q`, `src/plan.q`, and `src/apply.q` (in that
+order; each depends on the one before) to diff, plan, and apply against an HDB:
 
-```
-q _smoke.q -q
+```q
+\l src/diff.q
+\l src/plan.q
+\l src/apply.q
+diffResult: .qm.diff[`:/path/to/hdb; schemas; ()!()];
+plan:       .qm.plan[diffResult; schemas];
+result:     .qm.apply[`:/path/to/hdb; plan; ()!()];
 ```
 
-> On Windows with the free KDB-X edition, the license lives at `C:\q\kc.lic`; set `QLIC=C:\q` so q can find it. Full invocation used here:
-> `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke.q -q`
+See [Differ](#differ), [Plan](#plan), and [Apply](#apply) for what each call
+returns. To run the test suite, see [Testing](#testing).
 
 ## Testing
 
-No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. `_smoke_plan.q` covers the plan layer — it builds differ results (both hand-built and from a throwaway HDB) and asserts every operation in the catalog, the execution ordering, and `applyable` propagation. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`. `_smoke_apply.q` covers the apply layer — it builds throwaway HDBs, drives diff->plan->apply for every operation, and asserts the disk result (by re-diffing to `ok`), the backup/rollback path, dry-run, partition fan-out, and idempotency. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_apply.q -q`. A proper framework is still to be chosen.
+The test suite uses **qcumber** (`.quke` BDD files). Run it from the repo root:
+
+    q test/run.q -q
+
+The runner loads the vendored qcumber under `lib/ax/`, loads `src/*` and
+`test/helpers.q`, runs every `*.quke` in `test/`, and exits non-zero on any
+failed expectation or parse error (printing `qcumber: TOTAL=.. FAIL=.. PARSEERR=..`).
+`test/{qm,diff,plan,apply}.quke` cover the DSL, differ, plan, and apply layers
+respectively, porting every assertion from the original `_smoke*.q` harnesses.
+
+> qcumber is the KX Developer AX library suite. It does not officially support
+> KDB-X 5.0 (the IDE rejects v5), but the standalone runner has no version gate;
+> a minimal subset is vendored under `lib/ax/` with the Windows native libs
+> relocated to `ws/lib/` so the AX loader resolves them. Windows-only. See
+> `lib/ax/NOTICE` (proprietary; private repo only).
+
+The `test/_smoke*.q` files remain as a dependency-free fallback (e.g.
+`q test/_smoke.q -q`, run from the repo root), each exiting non-zero on failure.
 
 ## Phase 1 scope
 

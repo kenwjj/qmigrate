@@ -1,0 +1,220 @@
+feature plan: empty diff
+    before
+        .t.dr0: .qm.i.rollupWith[.qm.i.noRows; .qm.i.normOpts[()!()]];
+        .t.p0: .qm.plan[.t.dr0; ()!()];
+    should produce empty plan
+        expect empty plan result dict
+            .qu.compare[`maxSeverity`applyable`ops; key .t.p0]
+        expect empty plan 0 ops
+            0=count .t.p0`ops
+        expect empty plan applyable
+            .qu.compare[.t.p0[`applyable]; 1b]
+        expect empty plan maxSeverity
+            .qu.compare[.t.p0[`maxSeverity]; `ok]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: input validation
+    before
+        .t.dr0: .qm.i.rollupWith[.qm.i.noRows; .qm.i.normOpts[()!()]];
+    should throw on bad inputs
+        expect plan malformed dr throws
+            thr[.qm.plan[(enlist`bogus)!enlist 1; ]; ()!()]
+        expect plan non-dict decls throws
+            thr[.qm.plan[.t.dr0; ]; 42]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: createTable
+    before
+        .t.dtrade: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`price;`float]);
+        .t.drNew: .qm.i.rollupWith[.qm.i.row[`trade;`;`newTable;::;`partitioned;"absent"]; .qm.i.normOpts[()!()]];
+        .t.pNew: .qm.plan[.t.drNew; (enlist`trade)!enlist .t.dtrade];
+    should produce one createTable op
+        expect createTable 1 op
+            .qu.compare[count .t.pNew`ops; 1]
+        expect createTable op type
+            .qu.compare[first .t.pNew[`ops]`op; `createTable]
+        expect createTable seq=1
+            .qu.compare[1; first .t.pNew[`ops]`seq]
+        expect createTable table-level
+            .qu.compare[`; first .t.pNew[`ops]`column]
+        expect createTable params kind
+            .qu.compare[`partitioned; (first .t.pNew[`ops]`params)`kind]
+        expect createTable params cols
+            .qu.compare[`time`sym`price; (first .t.pNew[`ops]`params)[`columns]`name]
+        expect createTable params partField
+            .qu.compare[`date; (first .t.pNew[`ops]`params)`partitionField]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: addColumn
+    before
+        .t.dadd: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`exchange;`symbol;`default`attr!(`NYSE;`g)]; .qm.colx[`load_date;`date;`defaultFn`.user.computeLoadDate]);
+        .t.rowsAdd: (.qm.i.row[`trade;`exchange;`addColumn;::;`symbol;"add"]),(.qm.i.row[`trade;`load_date;`addColumn;::;`date;"add"]);
+        .t.pAdd: .qm.plan[.qm.i.rollupWith[.t.rowsAdd; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.dadd];
+        .t.ax: select from .t.pAdd[`ops] where column=`exchange;
+        .t.al: select from .t.pAdd[`ops] where column=`load_date;
+    should produce addColumn ops
+        expect addColumn op type
+            .qu.compare[`addColumn; first .t.ax`op]
+        expect addColumn carries default
+            .qu.compare[`NYSE; (first .t.ax`params)`default]
+        expect addColumn carries attr
+            .qu.compare[`g; (first .t.ax`params)`attr]
+        expect addColumn exchange detail
+            (first .t.ax`detail) like "*default NYSE"
+        expect addColumn defaultFn param
+            .qu.compare[`.user.computeLoadDate; (first .t.al`params)`defaultFn]
+        expect addColumn defaultFn detail
+            (first .t.al`detail) like "*computed default via*"
+        expect addColumn two ops
+            2=count select from .t.pAdd[`ops] where op=`addColumn
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: attrChange
+    before
+        .t.dattr: .qm.schema[`trade] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`px;`float]);
+        .t.rowsAttr: (.qm.i.row[`trade;`sym;`attrChange;`;`p;"attr differs"]),(.qm.i.row[`trade;`px;`attrChange;`g;`;"attr differs"]);
+        .t.pAttr: .qm.plan[.qm.i.rollupWith[.t.rowsAttr; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.dattr];
+    should produce setAttr and clearAttr ops
+        expect setAttr op
+            `setAttr in exec op from .t.pAttr[`ops] where column=`sym
+        expect setAttr param
+            .qu.compare[`p; (first exec params from .t.pAttr[`ops] where column=`sym)`attr]
+        expect clearAttr op
+            `clearAttr in exec op from .t.pAttr[`ops] where column=`px
+        expect clearAttr param
+            .qu.compare[`g; (first exec params from .t.pAttr[`ops] where column=`px)`from]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: dropColumn
+    before
+        .t.ddrop: .qm.schema[`trade] (.qm.splayed[]; .qm.col[`keep;`long]);
+        .t.pDrop: .qm.plan[.qm.i.rollupWith[.qm.i.row[`trade;`gone;`dropColumn;`float;::;"on disk, not declared"]; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.ddrop];
+    should produce dropColumn op
+        expect dropColumn op
+            .qu.compare[`dropColumn; first .t.pDrop[`ops]`op]
+        expect dropColumn destructive
+            .qu.compare[`destructive; first .t.pDrop[`ops]`severity]
+        expect dropColumn column
+            .qu.compare[`gone; first .t.pDrop[`ops]`column]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: reorderColumns
+    before
+        .t.dord: .qm.schema[`trade] (.qm.splayed[]; .qm.col[`a;`long]; .qm.col[`b;`long]);
+        .t.pOrd: .qm.plan[.qm.i.rollupWith[.qm.i.row[`trade;`;`colOrderChange;`b`a;`a`b;"different order"]; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.dord];
+    should produce reorderColumns op
+        expect reorderColumns op
+            .qu.compare[`reorderColumns; first .t.pOrd[`ops]`op]
+        expect reorderColumns order
+            .qu.compare[`a`b; (first .t.pOrd[`ops]`params)`order]
+        expect reorderColumns table-level
+            .qu.compare[`; first .t.pOrd[`ops]`column]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: reEnumerate
+    before
+        .t.denum: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`sym;`symbol]);
+        .t.pEnum: .qm.plan[.qm.i.rollupWith[.qm.i.row[`trade;`sym;`enumMismatch;0b;1b;"enumeration state differs"]; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.denum];
+    should produce reEnumerate op
+        expect reEnumerate op
+            .qu.compare[`reEnumerate; first .t.pEnum[`ops]`op]
+        expect reEnumerate warning
+            .qu.compare[`warning; first .t.pEnum[`ops]`severity]
+        expect reEnumerate param
+            .qu.compare[1b; (first .t.pEnum[`ops]`params)`enumerate]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: manual (recreate-class)
+    before
+        .t.dman: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`a;`long]);
+        .t.rowsMan: (.qm.i.row[`trade;`a;`typeChange;`float;`long;"type differs"]),(.qm.i.row[`trade;`a;`listChange;0b;1b;"list-ness differs"]),(.qm.i.row[`trade;`;`kindChange;`splayed;`partitioned;"kind differs"]),(.qm.i.row[`trade;`;`partitionChange;`month;`date;"partition differs"]);
+        .t.pMan: .qm.plan[.qm.i.rollupWith[.t.rowsMan; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.dman];
+    should produce manual ops for all recreate changes
+        expect manual for all 4 recreate changes
+            4=count select from .t.pMan[`ops] where op=`manual
+        expect manual keeps destructive sev
+            all `destructive=exec severity from .t.pMan[`ops] where op=`manual
+        expect manual carries originating change
+            all `typeChange`listChange`kindChange`partitionChange in exec change from .t.pMan[`ops] where op=`manual
+        expect manual detail mentions recreate
+            all (exec detail from .t.pMan[`ops] where op=`manual) like "*drop-and-recreate*"
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: ordering + no-ops
+    before
+        .t.dmix: .qm.schema[`trade] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`new;`long]; .qm.col[`keep;`long]);
+        .t.rowsMix: (.qm.i.row[`trade;`;`colOrderChange;`keep`sym;`sym`new`keep;"order"]),(.qm.i.row[`trade;`gone;`dropColumn;`float;::;"drop"]),(.qm.i.row[`trade;`new;`addColumn;::;`long;"add"]),(.qm.i.row[`trade;`sym;`attrChange;`;`p;"attr"]);
+        .t.pMix: .qm.plan[.qm.i.rollupWith[.t.rowsMix; .qm.i.normOpts[()!()]]; (enlist`trade)!enlist .t.dmix];
+    should produce ops in correct sequence
+        expect ordering: seq is 1..n
+            .qu.compare[.t.pMix[`ops][`seq]; `long$1+til count .t.pMix`ops]
+        expect ordering: op sequence
+            .qu.compare[.t.pMix[`ops][`op]; `addColumn`dropColumn`setAttr`reorderColumns]
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: unmanaged + skipped
+    before
+        .t.dnone: .qm.schema[`cfg] (.qm.memory[]; .qm.col[`k;`symbol]);
+        .t.rowsNone: (.qm.i.row[`ref;`;`unmanagedTable;`ref;::;"on disk, not declared"]),(.qm.i.row[`cfg;`;`skipped;::;::;"in-memory table; no disk target"]);
+        .t.pNone: .qm.plan[.qm.i.rollupWith[.t.rowsNone; .qm.i.normOpts[()!()]]; (enlist`cfg)!enlist .t.dnone];
+    should produce no ops
+        expect unmanaged+skipped -> 0 ops
+            0=count .t.pNone`ops
+    after
+        ![`.t;();0b;key `.t];
+
+feature plan: end-to-end against a temp HDB
+    before
+        rmrf "testhdb_plan";
+        .t.HDB: `:testhdb_plan;
+        system "mkdir ",ssr[1_string ` sv .t.HDB,`inst,`; "/"; "\\"];
+        (` sv .t.HDB,`inst,`sym)  set `AA`BB;
+        (` sv .t.HDB,`inst,`name) set `x`y;
+        (` sv .t.HDB,`inst,`.d)   set `sym`name;
+        .t.dinst: .qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`name;`symbol]; .qm.colx[`active;`boolean;(enlist`default)!enlist 0b]);
+        .t.drE: .qm.diff[.t.HDB; (enlist`inst)!enlist .t.dinst; ()!()];
+        .t.pE: .qm.plan[.t.drE; (enlist`inst)!enlist .t.dinst];
+    should detect addColumn and setAttr
+        expect e2e addColumn active
+            `addColumn in exec op from .t.pE[`ops] where column=`active
+        expect e2e setAttr sym
+            `setAttr in exec op from .t.pE[`ops] where column=`sym
+        expect e2e applyable
+            .qu.compare[.t.pE[`applyable]; 1b]
+    after
+        rmrf "testhdb_plan";
+        ![`.t;();0b;key `.t];
+
+feature plan: destructive applyable propagation
+    before
+        rmrf "testhdb_plan";
+        .t.HDB: `:testhdb_plan;
+        system "mkdir ",ssr[1_string ` sv .t.HDB,`inst,`; "/"; "\\"];
+        (` sv .t.HDB,`inst,`sym)  set `AA`BB;
+        (` sv .t.HDB,`inst,`name) set `x`y;
+        (` sv .t.HDB,`inst,`.d)   set `sym`name;
+        .t.ddrp: .qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]);
+        .t.drD: .qm.diff[.t.HDB; (enlist`inst)!enlist .t.ddrp; ()!()];
+        .t.pD: .qm.plan[.t.drD; (enlist`inst)!enlist .t.ddrp];
+        .t.drDok: .qm.diff[.t.HDB; (enlist`inst)!enlist .t.ddrp; (enlist`allowDestructive)!enlist 1b];
+        .t.pDok: .qm.plan[.t.drDok; (enlist`inst)!enlist .t.ddrp];
+    should block destructive by default, allow when opted in
+        expect e2e destructive blocked
+            .qu.compare[.t.pD[`applyable]; 0b]
+        expect e2e dropColumn name
+            `dropColumn in exec op from .t.pD[`ops] where column=`name
+        expect e2e applyable when allowed
+            .qu.compare[.t.pDok[`applyable]; 1b]
+    after
+        rmrf "testhdb_plan";
+        ![`.t;();0b;key `.t];
