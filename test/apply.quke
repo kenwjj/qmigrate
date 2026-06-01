@@ -1,0 +1,394 @@
+feature apply: low-level helpers
+    before
+        rmrf "testhdb_apply";
+        .t.R: `:testhdb_apply;
+        .t.sd: ` sv .t.R,`inst;
+        (` sv .t.sd,`sym) set `AA`BB`CC;
+        (` sv .t.sd,`px)  set 1 2 3f;
+        (` sv .t.sd,`.d)  set `sym`px;
+    should verify low-level helper functions
+        expect getD returns col list
+            .qu.compare[.qm.i.getD .t.sd; `sym`px]
+        expect rowCount=3
+            3=.qm.i.rowCount .t.sd
+        expect kindOf splayed
+            .qu.compare[`splayed; .qm.i.kindOf[.t.R;`inst]]
+        expect kindOf absent
+            .qu.compare[`absent; .qm.i.kindOf[.t.R;`nope]]
+        expect partDirs splayed
+            .qu.compare[.qm.i.partDirs[.t.R;`inst]; enlist .t.sd]
+        expect attrOK s sorted
+            .qm.i.attrOK[`s; 1 2 3]
+        expect attrOK u dups
+            not .qm.i.attrOK[`u; 1 1 2]
+        expect attrOK empty
+            .qm.i.attrOK[`; 3 1 2]
+        expect enum extends
+            .qu.compare[`AA`DD; get[` sv .t.R,`sym] .qm.i.enum[.t.R;`AA`DD]]
+        expect tnull long
+            .qu.compare[.qm.i.tnull`long; enlist 0N]
+        expect sentinelDir date
+            .qu.compare["1900.01.01"; .qm.i.sentinelDir`date]
+        expect sentinelDir int
+            .qu.compare["0"; .qm.i.sentinelDir`int]
+    after
+        rmrf "testhdb_apply";
+        ![`.t;();0b;key `.t];
+
+feature apply: backup / restore / delete-created
+    before
+        rmrf "testhdb_bk";
+        .t.B: `:testhdb_bk;
+        .t.bd: ` sv .t.B,`t;
+        (` sv .t.bd,`a)  set 1 2 3;
+        (` sv .t.bd,`.d) set enlist `a;
+        .t.bdir: .qm.i.backupDir[.t.B; ()!()];
+        .t.oa: ` sv .t.bd,`a;
+        .qm.i.doBackup[.t.bdir; enlist .t.oa];
+        .t.oa set 9 9 9;
+        .qm.i.restore[.t.bdir; enlist .t.oa];
+        .t.nf: ` sv .t.B,`p,`t,`x;
+        .t.nf set 1 2;
+        .qm.i.deleteCreated (.t.nf; ` sv .t.B,`p,`t; ` sv .t.B,`p);
+    should backup/restore and delete created
+        expect backupDir default
+            .qu.compare[.t.bdir; ` sv .t.B,`.qmbackup]
+        expect restore round-trip
+            .qu.compare[get .t.oa; 1 2 3]
+        expect deleteCreated removed file
+            not `x in key ` sv .t.B,`p,`t
+        expect deleteCreated removed dirs
+            not `p in key .t.B
+    after
+        rmrf "testhdb_bk";
+        ![`.t;();0b;key `.t];
+
+feature apply: gate / noop / dryRun / setAttr e2e
+    before
+        rmrf "testhdb_s";
+        .t.S: `:testhdb_s;
+        .t.ssd: ` sv .t.S,`inst;
+        (` sv .t.ssd,`sym)  set `AA`BB`CC;
+        (` sv .t.ssd,`name) set `x`y`z;
+        (` sv .t.ssd,`.d)   set `sym`name;
+        .t.dinst: .qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`name;`symbol]);
+        .t.dr: .qm.diff[.t.S; (enlist`inst)!enlist .t.dinst; ()!()];
+        .t.pl: .qm.plan[.t.dr; (enlist`inst)!enlist .t.dinst];
+        .t.resDry: .qm.apply[.t.S; .t.pl; (enlist`dryRun)!enlist 1b];
+        .t.dryAttr: attr get ` sv .t.ssd,`sym;
+        .t.res: .qm.apply[.t.S; .t.pl; ()!()];
+        .t.dr2: .qm.diff[.t.S; (enlist`inst)!enlist .t.dinst; ()!()];
+        .t.pl2: .qm.plan[.t.dr2; (enlist`inst)!enlist .t.dinst];
+        .t.res2: .qm.apply[.t.S; .t.pl2; ()!()];
+        .t.ddrp: .qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]);
+        .t.plD: .qm.plan[.qm.diff[.t.S;(enlist`inst)!enlist .t.ddrp;()!()]; (enlist`inst)!enlist .t.ddrp];
+        .t.resB: .qm.apply[.t.S; .t.plD; ()!()];
+    should handle gate / noop / dryRun / setAttr
+        expect dryRun status
+            .qu.compare[.t.resDry[`status]; `dryRun]
+        expect dryRun planned
+            `planned in .t.resDry[`ops]`status
+        expect dryRun no attr
+            `~.t.dryAttr
+        expect setAttr applied
+            .qu.compare[.t.res[`status]; `applied]
+        expect sym has s attr
+            `s=attr get ` sv .t.ssd,`sym
+        expect report has done
+            `done in .t.res[`ops]`status
+        expect noop status
+            .qu.compare[.t.res2[`status]; `noop]
+        expect blocked status
+            .qu.compare[.t.resB[`status]; `blocked]
+        expect blocked no write
+            `name in get ` sv .t.ssd,`.d
+        expect bad opts throws
+            thr[.qm.apply[.t.S;.t.pl;]; (enlist`bogus)!enlist 1]
+        expect malformed plan throws
+            thr[.qm.apply[.t.S; (enlist`bogus)!enlist 1;]; ()!()]
+    after
+        rmrf "testhdb_s";
+        ![`.t;();0b;key `.t];
+
+feature apply: addColumn (literal / list / typed-null)
+    before
+        rmrf "testhdb_ac";
+        .t.AC: `:testhdb_ac;
+        .t.acd: ` sv .t.AC,`t;
+        (` sv .t.acd,`k)  set 1 2 3;
+        (` sv .t.acd,`.d) set enlist `k;
+        .t.dac: .qm.schema[`t] (.qm.splayed[]; .qm.col[`k;`long]; .qm.colx[`flag;`boolean;(enlist`default)!enlist 1b]; .qm.colx[`tags;`symbol;`default`list!(enlist`x;1b)]; .qm.col[`note;`symbol]);
+        .t.plac: .qm.plan[.qm.diff[.t.AC;(enlist`t)!enlist .t.dac;()!()]; (enlist`t)!enlist .t.dac];
+        .t.resac: .qm.apply[.t.AC; .t.plac; ()!()];
+    should add columns with correct defaults
+        expect addColumn applied
+            .qu.compare[.t.resac[`status]; `applied]
+        expect literal default
+            .qu.compare[get ` sv .t.acd,`flag; 3#1b]
+        expect list default cell
+            .qu.compare[get ` sv .t.acd,`tags; 3#enlist enlist `x]
+        expect typed-null default
+            .qu.compare[get ` sv .t.acd,`note; 3#`]
+        expect all in .d
+            .qu.compare[get ` sv .t.acd,`.d; `k`flag`tags`note]
+        expect re-diff ok
+            `ok~(.qm.diff[.t.AC;(enlist`t)!enlist .t.dac;()!()])`maxSeverity
+    after
+        rmrf "testhdb_ac";
+        ![`.t;();0b;key `.t];
+
+feature apply: addColumn defaultFn + preflight throws
+    before
+        rmrf "testhdb_fn";
+        rmrf "testhdb_bad";
+        rmrf "testhdb_at";
+        .t.FN: `:testhdb_fn;
+        .t.fnd: ` sv .t.FN,`t;
+        (` sv .t.fnd,`a)  set 10 20 30;
+        (` sv .t.fnd,`.d) set enlist `a;
+        .user.mk:{[path;col] count[get ` sv path,`a]#42};
+        .t.dfn: .qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.colx[`b;`long;`defaultFn`.user.mk]);
+        .t.plfn: .qm.plan[.qm.diff[.t.FN;(enlist`t)!enlist .t.dfn;()!()]; (enlist`t)!enlist .t.dfn];
+        .t.resfn: .qm.apply[.t.FN; .t.plfn; ()!()];
+        .t.FNB: `:testhdb_bad;
+        .t.fnbd: ` sv .t.FNB,`t;
+        (` sv .t.fnbd,`a)  set 10 20 30;
+        (` sv .t.fnbd,`.d) set enlist `a;
+        .t.dbad: .qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.colx[`c;`long;`defaultFn`.user.nope]);
+        .t.plbad: .qm.plan[.qm.diff[.t.FNB;(enlist`t)!enlist .t.dbad;()!()]; (enlist`t)!enlist .t.dbad];
+        .t.AT: `:testhdb_at;
+        .t.atd: ` sv .t.AT,`t;
+        (` sv .t.atd,`u)  set 1 1 2;
+        (` sv .t.atd,`.d) set enlist `u;
+        .t.dat: .qm.schema[`t] (.qm.splayed[]; .qm.colx[`u;`long;`attr`u]);
+        .t.plat: .qm.plan[.qm.diff[.t.AT;(enlist`t)!enlist .t.dat;()!()]; (enlist`t)!enlist .t.dat];
+    should apply defaultFn and throw on bad preflight
+        expect defaultFn applied
+            .qu.compare[.t.resfn[`status]; `applied]
+        expect defaultFn values
+            .qu.compare[get ` sv .t.fnd,`b; 3#42]
+        expect missing defaultFn throws
+            thr[.qm.apply[.t.FNB;.t.plbad;]; ()!()]
+        expect throw left no col c
+            not `c in get ` sv .t.fnbd,`.d
+        expect unsatisfiable attr throws
+            thr[.qm.apply[.t.AT;.t.plat;]; ()!()]
+        expect attr-throw left col unmarked
+            `~attr get ` sv .t.atd,`u
+    after
+        rmrf "testhdb_fn";
+        rmrf "testhdb_bad";
+        rmrf "testhdb_at";
+        ![`.t;();0b;key `.t];
+
+feature apply: dropColumn
+    before
+        rmrf "testhdb_dc";
+        .t.DC: `:testhdb_dc;
+        .t.dcd: ` sv .t.DC,`t;
+        (` sv .t.dcd,`keep) set 1 2 3;
+        (` sv .t.dcd,`gone) set `a`b`c;
+        (` sv .t.dcd,`.d)   set `keep`gone;
+        .t.ddc: .qm.schema[`t] (.qm.splayed[]; .qm.col[`keep;`long]);
+        .t.pldc: .qm.plan[.qm.diff[.t.DC;(enlist`t)!enlist .t.ddc;(enlist`allowDestructive)!enlist 1b]; (enlist`t)!enlist .t.ddc];
+        .t.resdc: .qm.apply[.t.DC; .t.pldc; ()!()];
+    should drop column from disk
+        expect dropColumn applied
+            .qu.compare[.t.resdc[`status]; `applied]
+        expect gone removed from .d
+            .qu.compare[get ` sv .t.dcd,`.d; enlist `keep]
+        expect gone file deleted
+            not `gone in key .t.dcd
+        expect re-diff ok
+            `ok~(.qm.diff[.t.DC;(enlist`t)!enlist .t.ddc;()!()])`maxSeverity
+    after
+        rmrf "testhdb_dc";
+        ![`.t;();0b;key `.t];
+
+feature apply: clearAttr
+    before
+        rmrf "testhdb_ca";
+        .t.CA: `:testhdb_ca;
+        .t.cad: ` sv .t.CA,`t;
+        (` sv .t.cad,`g)  set `g#`a`b`c;
+        (` sv .t.cad,`.d) set enlist `g;
+        .t.dca: .qm.schema[`t] (.qm.splayed[]; .qm.col[`g;`symbol]);
+        .t.plca: .qm.plan[.qm.diff[.t.CA;(enlist`t)!enlist .t.dca;()!()]; (enlist`t)!enlist .t.dca];
+        .t.resca: .qm.apply[.t.CA; .t.plca; ()!()];
+    should clear attribute
+        expect clearAttr applied
+            .qu.compare[.t.resca[`status]; `applied]
+        expect attr cleared
+            `~attr get ` sv .t.cad,`g
+    after
+        rmrf "testhdb_ca";
+        ![`.t;();0b;key `.t];
+
+feature apply: reorderColumns
+    before
+        rmrf "testhdb_ro";
+        .t.RO: `:testhdb_ro;
+        .t.rod: ` sv .t.RO,`t;
+        (` sv .t.rod,`a)  set 1 2 3;
+        (` sv .t.rod,`b)  set 4 5 6;
+        (` sv .t.rod,`.d) set `b`a;
+        .t.dro: .qm.schema[`t] (.qm.splayed[]; .qm.col[`a;`long]; .qm.col[`b;`long]);
+        .t.plro: .qm.plan[.qm.diff[.t.RO;(enlist`t)!enlist .t.dro;()!()]; (enlist`t)!enlist .t.dro];
+        .t.resro: .qm.apply[.t.RO; .t.plro; ()!()];
+    should reorder columns
+        expect reorder applied
+            .qu.compare[.t.resro[`status]; `applied]
+        expect .d reordered
+            .qu.compare[get ` sv .t.rod,`.d; `a`b]
+        expect data intact
+            .qu.compare[get ` sv .t.rod,`a; 1 2 3]
+        expect re-diff ok
+            `ok~(.qm.diff[.t.RO;(enlist`t)!enlist .t.dro;()!()])`maxSeverity
+    after
+        rmrf "testhdb_ro";
+        ![`.t;();0b;key `.t];
+
+feature apply: reEnumerate (partitioned symbol col raw on disk)
+    before
+        rmrf "testhdb_en";
+        .t.EN: `:testhdb_en;
+        (` sv .t.EN,`sym) set `$();
+        .t.ped: ` sv .t.EN,`2024.01.01,`q;
+        (` sv .t.ped,`time) set 2#0Np;
+        (` sv .t.ped,`s)    set `AA`BB;
+        (` sv .t.ped,`.d)   set `time`s;
+        .t.den: .qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.col[`s;`symbol]);
+        .t.plen: .qm.plan[.qm.diff[.t.EN;(enlist`q)!enlist .t.den;()!()]; (enlist`q)!enlist .t.den];
+        .t.resen: .qm.apply[.t.EN; .t.plen; ()!()];
+    should re-enumerate symbol column
+        expect reEnumerate applied
+            .qu.compare[.t.resen[`status]; `applied]
+        expect col now enum-typed
+            (type get ` sv .t.ped,`s) within 20 76h
+        expect values preserved
+            .qu.compare[`AA`BB; get[` sv .t.EN,`sym] get ` sv .t.ped,`s]
+    after
+        rmrf "testhdb_en";
+        ![`.t;();0b;key `.t];
+
+feature apply: createTable splayed
+    before
+        rmrf "testhdb_ct";
+        .t.CT: `:testhdb_ct;
+        (` sv .t.CT,`marker) set 1 2 3;
+        .t.dct: .qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`u]; .qm.col[`name;`symbol]; .qm.col[`active;`boolean]);
+        .t.plct: .qm.plan[.qm.diff[.t.CT;(enlist`inst)!enlist .t.dct;()!()]; (enlist`inst)!enlist .t.dct];
+        .t.resct: .qm.apply[.t.CT; .t.plct; ()!()];
+        .t.ctd: ` sv .t.CT,`inst;
+    should create splayed table
+        expect plan has createTable
+            `createTable in .t.plct[`ops]`op
+        expect createTable applied
+            .qu.compare[.t.resct[`status]; `applied]
+        expect splayed .d
+            .qu.compare[get ` sv .t.ctd,`.d; `sym`name`active]
+        expect splayed empty
+            0=count get ` sv .t.ctd,`sym
+        expect re-diff ok
+            `ok~(.qm.diff[.t.CT;(enlist`inst)!enlist .t.dct;()!()])`maxSeverity
+    after
+        rmrf "testhdb_ct";
+        ![`.t;();0b;key `.t];
+
+feature apply: createTable partitioned (sentinel)
+    before
+        rmrf "testhdb_cp";
+        .t.CP: `:testhdb_cp;
+        (` sv .t.CP,`sym) set `$();
+        .t.dcp: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`px;`float]);
+        .t.plcp: .qm.plan[.qm.diff[.t.CP;(enlist`trade)!enlist .t.dcp;()!()]; (enlist`trade)!enlist .t.dcp];
+        .t.rescp: .qm.apply[.t.CP; .t.plcp; ()!()];
+        .t.pdir: ` sv .t.CP,`1900.01.01,`trade;
+    should create partitioned table with sentinel
+        expect part createTable applied
+            .qu.compare[.t.rescp[`status]; `applied]
+        expect sentinel .d
+            .qu.compare[get ` sv .t.pdir,`.d; `time`sym`px]
+        expect sentinel empty
+            0=count get ` sv .t.pdir,`time
+        expect sym col enum-typed
+            (type get ` sv .t.pdir,`sym) within 20 76h
+        expect re-diff no newTable
+            not `newTable in exec change from (.qm.diff[.t.CP;(enlist`trade)!enlist .t.dcp;()!()])`rows
+    after
+        rmrf "testhdb_cp";
+        ![`.t;();0b;key `.t];
+
+feature apply: rollback on mid-run failure
+    before
+        rmrf "testhdb_rb";
+        .t.RB: `:testhdb_rb;
+        .t.rbd: ` sv .t.RB,`inst;
+        (` sv .t.rbd,`name) set `x`y`z;
+        (` sv .t.rbd,`sym)  set `s#`a`b`c;
+        (` sv .t.rbd,`.d)   set `name`sym;
+        .t.drb: .qm.schema[`inst] (.qm.splayed[]; .qm.colx[`sym;`symbol;`attr`s]; .qm.col[`name;`symbol]; .qm.col[`extra;`long]);
+        .t.plrb: .qm.plan[.qm.diff[.t.RB;(enlist`inst)!enlist .t.drb;()!()]; (enlist`inst)!enlist .t.drb];
+        .t.realRun: .qm.i.runOp;
+        .qm.i.runOp:{[root;e] if[e[`op]~`reorderColumns; '"boom"]; .t.realRun[root;e]};
+        .t.dBefore: get ` sv .t.rbd,`.d;
+        .t.resrb: .qm.apply[.t.RB; .t.plrb; ()!()];
+        .qm.i.runOp: .t.realRun;
+    should roll back cleanly
+        expect rollback status
+            .qu.compare[.t.resrb`status; `rolledBack]
+        expect rollback restored .d
+            .qu.compare[get ` sv .t.rbd,`.d; .t.dBefore]
+        expect rollback removed extra
+            not `extra in key .t.rbd
+        expect report marks failed
+            `failed in .t.resrb[`ops]`status
+    after
+        rmrf "testhdb_rb";
+        ![`.t;();0b;key `.t];
+
+feature apply: multi-partition fan-out + idempotency
+    before
+        rmrf "testhdb_mp";
+        .t.MP: `:testhdb_mp;
+        (` sv .t.MP,`sym) set `$();
+        {[MP;d] pd:` sv MP,(`$d),`q; (` sv pd,`time) set 2#0Np; (` sv pd,`.d) set enlist `time}[.t.MP] each ("2024.01.01";"2024.01.02");
+        .t.dmp: .qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`flag;`boolean;(enlist`default)!enlist 0b]);
+        .t.plmp: .qm.plan[.qm.diff[.t.MP;(enlist`q)!enlist .t.dmp;()!()]; (enlist`q)!enlist .t.dmp];
+        .t.resmp: .qm.apply[.t.MP; .t.plmp; ()!()];
+        .t.plmp2: .qm.plan[.qm.diff[.t.MP;(enlist`q)!enlist .t.dmp;()!()]; (enlist`q)!enlist .t.dmp];
+        .t.resmp2: .qm.apply[.t.MP; .t.plmp2; ()!()];
+    should fan out across partitions and be idempotent
+        expect fan-out applied
+            .qu.compare[.t.resmp[`status]; `applied]
+        expect flag in partition 1
+            `flag in get ` sv .t.MP,`2024.01.01,`q,`.d
+        expect flag in partition 2
+            `flag in get ` sv .t.MP,`2024.01.02,`q,`.d
+        expect idempotent noop
+            .qu.compare[.t.resmp2[`status]; `noop]
+    after
+        rmrf "testhdb_mp";
+        ![`.t;();0b;key `.t];
+
+feature apply: rollback tolerates mid-fan-out
+    before
+        rmrf "testhdb_mf";
+        .t.MF: `:testhdb_mf;
+        (` sv .t.MF,`sym) set `$();
+        {[MF;d] pd:` sv MF,(`$d),`q; (` sv pd,`time) set 2#0Np; (` sv pd,`.d) set enlist `time}[.t.MF] each ("2024.01.01";"2024.01.02");
+        .t.dmf: .qm.schema[`q] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.col[`s;`symbol]);
+        .t.plmf: .qm.plan[.qm.diff[.t.MF;(enlist`q)!enlist .t.dmf;()!()]; (enlist`q)!enlist .t.dmf];
+        .t.realEnum: .qm.i.enum;
+        .t.ecnt: 0;
+        .qm.i.enum:{[root;v] .t.ecnt+:1; if[.t.ecnt>=2; '"midfanout"]; .t.realEnum[root;v]};
+        .t.resmf: .qm.apply[.t.MF; .t.plmf; ()!()];
+        .qm.i.enum: .t.realEnum;
+    should rollback tolerating never-created paths
+        expect midfanout rolledBack (no throw)
+            .qu.compare[.t.resmf[`status]; `rolledBack]
+        expect midfanout p1 col removed
+            not `s in get ` sv .t.MF,`2024.01.01,`q,`.d
+    after
+        rmrf "testhdb_mf";
+        ![`.t;();0b;key `.t];
