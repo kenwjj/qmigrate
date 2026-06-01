@@ -184,10 +184,11 @@ src/plan.q        the plan layer (.qm.plan); loaded after diff.q
 src/apply.q       the apply layer (.qm.apply); loaded after plan.q
 schemas/          example schema files (one table per file; loader recurses)
 schema-spec.md    canonical DSL specification (v0.1)
-_smoke.q          manual verification check for the DSL
-_smoke_diff.q     manual verification check for the differ (builds a temp HDB)
-_smoke_plan.q     manual verification check for the plan layer
-_smoke_apply.q    manual verification check for the apply layer
+test/run.q        qcumber runner: q test/run.q -q (exits non-zero on any failure)
+test/helpers.q    shared test helpers (thr, rmrf, mkcols, mkrep)
+test/*.quke       qcumber tests, one per src layer (qm, diff, plan, apply)
+test/_smoke*.q    original hand-rolled harnesses, kept as a dependency-free fallback
+lib/ax/           vendored minimal qcumber (KX AX libraries; proprietary -- see lib/ax/NOTICE)
 ```
 
 ## Running
@@ -204,15 +205,32 @@ schemas: .qm.loadSchemas `:schemas;
 Run the smoke check (exits non-zero on any failure):
 
 ```
-q _smoke.q -q
+q test/_smoke.q -q
 ```
 
 > On Windows with the free KDB-X edition, the license lives at `C:\q\kc.lic`; set `QLIC=C:\q` so q can find it. Full invocation used here:
-> `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke.q -q`
+> `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe test/_smoke.q -q`
 
 ## Testing
 
-No test framework is wired up yet — the `_smoke*.q` files are temporary hand-rolled harnesses (each exits non-zero on any failure). `_smoke.q` covers the DSL (every spec §8 example and §7 validation rule); `_smoke_diff.q` covers the differ — it builds a throwaway HDB under `testhdb/`, exercises every change in the catalog, and removes the fixture on exit. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_diff.q -q`. `_smoke_plan.q` covers the plan layer — it builds differ results (both hand-built and from a throwaway HDB) and asserts every operation in the catalog, the execution ordering, and `applyable` propagation. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_plan.q -q`. `_smoke_apply.q` covers the apply layer — it builds throwaway HDBs, drives diff->plan->apply for every operation, and asserts the disk result (by re-diffing to `ok`), the backup/rollback path, dry-run, partition fan-out, and idempotency. Run with `QLIC=/c/q QHOME=/c/q /c/q/w64/q.exe _smoke_apply.q -q`. A proper framework is still to be chosen.
+The test suite uses **qcumber** (`.quke` BDD files). Run it from the repo root:
+
+    q test/run.q -q
+
+The runner loads the vendored qcumber under `lib/ax/`, loads `src/*` and
+`test/helpers.q`, runs every `*.quke` in `test/`, and exits non-zero on any
+failed expectation or parse error (printing `qcumber: TOTAL=.. FAIL=.. PARSEERR=..`).
+`test/{qm,diff,plan,apply}.quke` cover the DSL, differ, plan, and apply layers
+respectively, porting every assertion from the original `_smoke*.q` harnesses.
+
+> qcumber is the KX Developer AX library suite. It does not officially support
+> KDB-X 5.0 (the IDE rejects v5), but the standalone runner has no version gate;
+> a minimal subset is vendored under `lib/ax/` with the Windows native libs
+> relocated to `ws/lib/` so the AX loader resolves them. Windows-only. See
+> `lib/ax/NOTICE` (proprietary; private repo only).
+
+The `test/_smoke*.q` files remain as a dependency-free fallback (e.g.
+`q test/_smoke.q -q`, run from the repo root), each exiting non-zero on failure.
 
 ## Phase 1 scope
 
