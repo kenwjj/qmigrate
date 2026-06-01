@@ -1,0 +1,80 @@
+feature DSL: build schemas (positive)
+    before
+        .t.tr: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`p]; .qm.col[`price;`float]; .qm.col[`size;`long]; .qm.colx[`exchange;`symbol;`default`attr!(`NYSE;`g)]);
+        .t.ex: first ?[.t.tr`columns;enlist(=;`name;enlist`exchange);0b;()];
+        .t.sy: first ?[.t.tr`columns;enlist(=;`name;enlist`sym);0b;()];
+        .t.ob: .qm.schema[`orderbook] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`p]; .qm.colx[`bid_prices;`float;`list`true]);
+        .t.bp: first ?[.t.ob`columns;enlist(=;`name;enlist`bid_prices);0b;()];
+        .t.cf: .qm.schema[`config] (.qm.memory[]; .qm.colx[`key;`symbol;`attr`u]; .qm.col[`value;`string]);
+        .t.df: .qm.schema[`tr] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`load_date;`date;`defaultFn`.user.computeLoadDate]);
+        .t.ld: first ?[.t.df`columns;enlist(=;`name;enlist`load_date);0b;()];
+    should classify the trade schema
+        expect trade name
+            .qu.compare[.t.tr`name; `trade]
+        expect trade kind
+            .qu.compare[.t.tr`kind; `partitioned]
+        expect trade partitionField
+            .qu.compare[.t.tr`partitionField; `date]
+        expect trade has 5 cols
+            .qu.compare[count .t.tr`columns; 5]
+        expect exchange default
+            .qu.compare[.t.ex`default; `NYSE]
+        expect exchange attr g
+            .qu.compare[.t.ex`attr; `g]
+        expect sym attr p
+            .qu.compare[.t.sy`attr; `p]
+        expect plain col attr empty
+            .qu.compare[(first ?[.t.tr`columns;enlist(=;`name;enlist`time);0b;()])`attr; `]
+    should classify list-ness, shapes, defaults
+        expect list`true coerces to 1b
+            .qu.compare[.t.bp`list; 1b]
+        expect non-list col is 0b
+            .qu.compare[(first ?[.t.ob`columns;enlist(=;`name;enlist`time);0b;()])`list; 0b]
+        expect memory kind
+            .qu.compare[.t.cf`kind; `memory]
+        expect memory partitionField empty
+            .qu.compare[.t.cf`partitionField; `]
+        expect defaultFn stored
+            .qu.compare[.t.ld`defaultFn; `.user.computeLoadDate]
+        expect defaultFn default is ::
+            (::)~.t.ld`default
+    after
+        ![`.t;();0b;key `.t];
+feature DSL: validation throws (spec section 7)
+    should signal on invalid schemas
+        expect unknown type
+            thr[.qm.schema[`t];(.qm.memory[];.qm.col[`x;`notatype])]
+        expect string cannot be a list
+            thr[.qm.schema[`t];(.qm.memory[];.qm.colx[`x;`string;`list`true])]
+        expect unknown modifier key
+            thr[.qm.colx[`x;`int];enlist`foo`bar]
+        expect both default and defaultFn
+            thr[.qm.schema[`t];(.qm.memory[];.qm.colx[`x;`int;`default`defaultFn!(5;`f)])]
+        expect invalid attr
+            thr[.qm.schema[`t];(.qm.memory[];.qm.colx[`x;`int;`attr`z])]
+        expect duplicate col names
+            thr[.qm.schema[`t];(.qm.memory[];.qm.col[`x;`int];.qm.col[`x;`long])]
+        expect no shape
+            thr[.qm.schema[`t];enlist .qm.col[`x;`int]]
+        expect two shapes
+            thr[.qm.schema[`t];(.qm.memory[];.qm.splayed[];.qm.col[`x;`int])]
+        expect no cols
+            thr[.qm.schema[`t];enlist .qm.memory[]]
+        expect name not symbol
+            thr[.qm.schema["t"];(.qm.memory[];.qm.col[`x;`int])]
+        expect shorthand bad length
+            thr[.qm.colx[`x;`int];enlist`a`b`c]
+        expect defaultFn not symbol
+            thr[.qm.schema[`t];(.qm.memory[];.qm.colx[`x;`int;(enlist`defaultFn)!enlist 5])]
+feature DSL: loadSchemas
+    before
+        .t.s: .qm.loadSchemas `:schemas;
+    should load the schemas directory
+        expect loaded 4 tables
+            .qu.compare[count .t.s; 4]
+        expect keys are the table names
+            .qu.compare[asc key .t.s; `config`instruments`orderbook`trade]
+        expect instruments is splayed
+            .qu.compare[.t.s[`instruments;`kind]; `splayed]
+    after
+        ![`.t;();0b;key `.t];
