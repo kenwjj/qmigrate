@@ -29,6 +29,7 @@ system "l test/helpers.q";
 system "l lib/ax/ws/qcumber.q_";
 
 r:.qu.runTestFolder `:test;
+show `success xcols r`allTestResults;
 nTot :count r`allTestResults;
 nFail:count r`allFailedTestResults;
 nPE  :count r`parseErrorList;
