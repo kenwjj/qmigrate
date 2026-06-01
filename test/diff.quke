@@ -1,0 +1,219 @@
+feature diff: compare newTable
+    before
+        .t.d: .qm.schema[`trade] (.qm.partitioned[`date]; .qm.col[`a;`long]);
+        .t.r: .qm.i.compare[.t.d; ::];
+    should detect new table
+        expect newTable 1 row
+            1=count .t.r
+        expect newTable change
+            .qu.compare[(first .t.r)[`change]; `newTable]
+        expect newTable severity
+            .qu.compare[(first .t.r)[`severity]; `change]
+        expect newTable to=kind
+            .qu.compare[(first .t.r)[`to]; `partitioned]
+    after
+        ![`.t;();0b;key `.t];
+
+feature diff: compare columns
+    before
+        .t.decl: mkrep[`t;`splayed;`] mkcols[`a`b`c; `long`symbol`float; 000b; ``g`; 000b];
+        .t.act:  mkrep[`t;`splayed;`] mkcols[`a`b`d; `long`symbol`int;  000b; ```; 000b];
+        .t.rc: .qm.i.cmpCols[.t.decl;.t.act];
+        .t.decl2: mkrep[`t;`splayed;`] mkcols[enlist`a; enlist`float; enlist 1b; enlist`; enlist 0b];
+        .t.act2:  mkrep[`t;`splayed;`] mkcols[enlist`a; enlist`long;  enlist 0b; enlist`; enlist 0b];
+        .t.rc2: .qm.i.cmpCols[.t.decl2;.t.act2];
+    should detect add/drop/attr changes
+        expect cmpCols addColumn c
+            `addColumn in exec change from .t.rc where column=`c
+        expect cmpCols dropColumn d
+            `dropColumn in exec change from .t.rc where column=`d
+        expect cmpCols attrChange b
+            `attrChange in exec change from .t.rc where column=`b
+        expect cmpCols no typeChange
+            0=count select from .t.rc where change=`typeChange
+    should detect type/list change on a
+        expect cmpCols typeChange a
+            `typeChange in exec change from .t.rc2 where column=`a
+        expect cmpCols listChange a
+            `listChange in exec change from .t.rc2 where column=`a
+        expect cmpCols typeChange severity
+            `destructive in exec severity from .t.rc2 where change=`typeChange
+    after
+        ![`.t;();0b;key `.t];
+
+feature diff: compare table-level
+    before
+        .t.dk: mkrep[`t;`partitioned;`date] mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+        .t.ak: mkrep[`t;`splayed;`]          mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+        .t.rk: .qm.i.cmpTable[.t.dk;.t.ak];
+        .t.dp: mkrep[`t;`partitioned;`date]  mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+        .t.ap2: mkrep[`t;`partitioned;`month] mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+        .t.dord: mkrep[`t;`splayed;`] mkcols[`a`b; `long`long; 00b; ``; 00b];
+        .t.aord: mkrep[`t;`splayed;`] mkcols[`b`a; `long`long; 00b; ``; 00b];
+    should detect kind change
+        expect kindChange
+            `kindChange in exec change from .t.rk
+        expect kindChange sev
+            `destructive in exec severity from .t.rk where change=`kindChange
+        expect kind change -> no partitionChange
+            0=count select from .t.rk where change=`partitionChange
+    should detect partition and order changes
+        expect partitionChange
+            `partitionChange in exec change from .qm.i.cmpTable[.t.dp;.t.ap2]
+        expect colOrderChange
+            `colOrderChange in exec change from .qm.i.cmpTable[.t.dord;.t.aord]
+        expect colOrderChange sev
+            `change in exec severity from .qm.i.cmpTable[.t.dord;.t.aord] where change=`colOrderChange
+    after
+        ![`.t;();0b;key `.t];
+
+feature diff: compare enum
+    before
+        .t.de: mkrep[`t;`partitioned;`date] mkcols[enlist`s; enlist`symbol; enlist 0b; enlist`; enlist 0b];
+        .t.ae: mkrep[`t;`partitioned;`date] mkcols[enlist`s; enlist`symbol; enlist 0b; enlist`; enlist 0b];
+        .t.am: mkrep[`t;`partitioned;`date] mkcols[enlist`s; enlist`symbol; enlist 0b; enlist`; enlist 1b];
+    should detect enum mismatch
+        expect enumMismatch
+            `enumMismatch in exec change from .qm.i.cmpEnum[.t.de;.t.ae]
+        expect enumMismatch sev
+            `warning in exec severity from .qm.i.cmpEnum[.t.de;.t.ae] where change=`enumMismatch
+        expect enum match -> none
+            0=count .qm.i.cmpEnum[.t.de;.t.am]
+    after
+        ![`.t;();0b;key `.t];
+
+feature diff: compare end-to-end pure
+    before
+        .t.dk: mkrep[`t;`partitioned;`date] mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+        .t.ak: mkrep[`t;`splayed;`]          mkcols[enlist`a; enlist`long; enlist 0b; enlist`; enlist 0b];
+    should raze all sub-comparisons
+        expect compare razes all
+            0<count .qm.i.compare[.t.dk;.t.ak]
+    after
+        ![`.t;();0b;key `.t];
+
+feature diff: rollup + opts
+    before
+        .t.decl2: mkrep[`t;`splayed;`] mkcols[enlist`a; enlist`float; enlist 1b; enlist`; enlist 0b];
+        .t.act2:  mkrep[`t;`splayed;`] mkcols[enlist`a; enlist`long;  enlist 0b; enlist`; enlist 0b];
+        .t.dord: mkrep[`t;`splayed;`] mkcols[`a`b; `long`long; 00b; ``; 00b];
+        .t.aord: mkrep[`t;`splayed;`] mkcols[`b`a; `long`long; 00b; ``; 00b];
+        .t.o0: .qm.i.normOpts[()!()];
+        .t.rd: .qm.i.cmpCols[.t.decl2;.t.act2];
+        .t.res0: .qm.i.rollupWith[.t.rd; .qm.i.normOpts[()!()]];
+        .t.res1: .qm.i.rollupWith[.t.rd; .qm.i.normOpts[(enlist`allowDestructive)!enlist 1b]];
+        .t.rch: .qm.i.cmpTable[.t.dord;.t.aord];
+        .t.resc: .qm.i.rollupWith[.t.rch; .t.o0];
+    should validate opts
+        expect normOpts default 0b
+            .qu.compare[.t.o0[`allowDestructive]; 0b]
+        expect normOpts unknown throws
+            thr[.qm.i.normOpts; (enlist`bogus)!enlist 1b]
+    should roll up destructive severity
+        expect rollup maxSeverity destructive
+            .qu.compare[.t.res0[`maxSeverity]; `destructive]
+        expect rollup blocked by default
+            .qu.compare[.t.res0[`applyable]; 0b]
+        expect rollup applyable when allowed
+            .qu.compare[.t.res1[`applyable]; 1b]
+    should roll up change severity
+        expect rollup change maxSeverity
+            .qu.compare[.t.resc[`maxSeverity]; `change]
+        expect rollup change applyable
+            .qu.compare[.t.resc[`applyable]; 1b]
+    after
+        ![`.t;();0b;key `.t];
+
+feature diff: against on-disk HDB ./testhdb
+    before
+        rmrf "testhdb";
+        .t.HDB: `:testhdb;
+        {[hdb;d] t:([] time:2#.z.p; sym:`A`B; bids:(1 2f;3 4f); note:("x";"yy"); px:1.0 2.0); (` sv hdb,(`$string d),`quote,`) set .Q.en[hdb;t]; }[.t.HDB] each 2025.01.01 2025.01.02;
+        system "mkdir ",ssr[1_string ` sv .t.HDB,`ref,`; "/"; "\\"];
+        (` sv .t.HDB,`ref,`sym)    set `s#`AA`BB;
+        (` sv .t.HDB,`ref,`label)  set `x`y;
+        (` sv .t.HDB,`ref,`active) set 01b;
+        (` sv .t.HDB,`ref,`.d)     set `sym`label`active;
+        .t.iq: .qm.i.introspect[.t.HDB;`quote];
+        .t.ir: .qm.i.introspect[.t.HDB;`ref];
+        .t.dq: .qm.schema[`quote] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`g]; .qm.colx[`bids;`float;`list`true]; .qm.col[`note;`string]; .qm.col[`px;`float]);
+        .t.res: .qm.diffTable[.t.HDB; .t.dq; ()!()];
+        .t.dm: .qm.schema[`cfg] (.qm.memory[]; .qm.col[`k;`symbol]);
+        .t.resm: .qm.diffTable[.t.HDB; .t.dm; ()!()];
+        .t.dqd: .qm.schema[`quote] (.qm.partitioned[`date]; .qm.col[`time;`timestamp]; .qm.colx[`sym;`symbol;`attr`g]; .qm.colx[`bids;`float;`list`true]; .qm.col[`note;`symbol]);
+        .t.resd: .qm.diffTable[.t.HDB; .t.dqd; ()!()];
+        .t.resda: .qm.diffTable[.t.HDB; .t.dqd; (enlist`allowDestructive)!enlist 1b];
+        .t.dfills: .qm.schema[`fills] (.qm.splayed[]; .qm.col[`id;`long]);
+        .t.resa: .qm.diff[.t.HDB; `quote`fills!(.t.dq;.t.dfills); ()!()];
+    should verify fixture exists
+        expect fixture quote exists
+            not ()~key ` sv .t.HDB,`2025.01.01`quote
+        expect fixture ref exists
+            not ()~key ` sv .t.HDB,`ref
+    should introspect quote table
+        expect introspect quote partitioned
+            .qu.compare[.t.iq[`kind]; `partitioned]
+        expect introspect quote pf=date
+            .qu.compare[.t.iq[`partitionField]; `date]
+        expect introspect bids is list
+            1b~(.qm.i.colInfo[.t.iq`columns;`bids])`list
+        expect introspect bids type float
+            .qu.compare[`float; (.qm.i.colInfo[.t.iq`columns;`bids])`type]
+        expect introspect note is string
+            .qu.compare[`string; (.qm.i.colInfo[.t.iq`columns;`note])`type]
+        expect introspect note not list
+            0b~(.qm.i.colInfo[.t.iq`columns;`note])`list
+        expect introspect sym enumerated
+            1b~(.qm.i.colInfo[.t.iq`columns;`sym])`enum
+    should introspect ref table
+        expect introspect ref splayed
+            .qu.compare[.t.ir[`kind]; `splayed]
+        expect introspect ref sym attr s
+            .qu.compare[`s; (.qm.i.colInfo[.t.ir`columns;`sym])`attr]
+        expect introspect ref sym raw (no enum)
+            0b~(.qm.i.colInfo[.t.ir`columns;`sym])`enum
+        expect introspect absent -> ::
+            (::)~.qm.i.introspect[.t.HDB;`nope]
+    should diff quote table
+        expect diffTable result dict
+            .qu.compare[`maxSeverity`applyable`rows; key .t.res]
+        expect diffTable attrChange sym
+            `attrChange in exec change from .t.res[`rows] where column=`sym
+        expect diffTable no enumMismatch
+            0=count select from .t.res[`rows] where change=`enumMismatch
+        expect diffTable applyable
+            .qu.compare[.t.res[`applyable]; 1b]
+    should handle memory table and bad path
+        expect diffTable memory skipped
+            `skipped in exec change from .t.resm[`rows]
+        expect diffTable bad path throws
+            thr[.qm.diffTable[`:does_not_exist;.t.dq]; ()!()]
+    should diff whole HDB
+        expect diff newTable fills
+            `newTable in exec change from .t.resa[`rows] where table=`fills
+        expect diff unmanaged ref
+            `unmanagedTable in exec change from .t.resa[`rows] where table=`ref
+        expect diff unmanaged is warning
+            `warning in exec severity from .t.resa[`rows] where change=`unmanagedTable
+        expect diff lists ref on disk
+            `ref in .qm.i.listTables .t.HDB
+        expect diff lists quote on disk
+            `quote in .qm.i.listTables .t.HDB
+        expect diff applyable (no destr)
+            .qu.compare[.t.resa[`applyable]; 1b]
+    should handle destructive changes
+        expect e2e maxSeverity destructive
+            .qu.compare[.t.resd[`maxSeverity]; `destructive]
+        expect e2e blocked by default
+            .qu.compare[.t.resd[`applyable]; 0b]
+        expect e2e dropColumn px
+            `dropColumn in exec change from .t.resd[`rows] where column=`px
+        expect e2e typeChange note
+            `typeChange in exec change from .t.resd[`rows] where column=`note
+        expect e2e applyable when allowed
+            .qu.compare[.t.resda[`applyable]; 1b]
+        expect e2e rows unchanged by opt
+            count[.t.resd`rows]=count .t.resda`rows
+    after
+        rmrf "testhdb";
+        ![`.t;();0b;key `.t];
